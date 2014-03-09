@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title></title>
+
+</head>
+<style type="text/css">
+	canvas  {
+		margin-left: 400px;
+	}
+</style>
+<body>
+
+	<canvas id = "canvas" width = "600" height = "600">
+
+	</canvas>
+
+</body>
+<script type="text/javascript">
+
+	var can = document.getElementById("canvas")
+
+	var ctx = can.getContext("2d")
+
+	var consts = {
+		'dx':
+			1,
+
+		'leftMost':
+			-50,
+		'rightMost':
+			can.width + 50,
+		'topMost':
+			can.height + 50,
+		'bottomMost':
+			-50,
+
+		terminalVelocity:
+			10,
+		gravity:
+			0.2,
+
+		colours:
+			{
+				"blue": "#3498db",
+				"white": "#ecf0f1"
+			},
+
+		scoreLeft:
+			canvas.width - ( canvas.width / Math.pow(1.618, 4) ),
+
+		scoreTop:
+			50,
+
+		cloud: {
+			xLength: 90,
+			yLength: 90 / 3
+		},
+		hero: {
+			xLength: 15,
+			yLength: 40
+		}
+	}
+
+	var keyCodes = {
+		'space':
+			32
+	}
+
+	var utils = {
+		'timer':
+			function (milliseconds) {
+
+				var genesis = (new Date).getTime()
+
+				return function () {
+					return (new Date).getTime() > (genesis + milliseconds)
+				}
+			},
+		'trueWithOdds':
+			function (p) {
+			return Math.random() < p
+		}
+	}
+
+	// the initial state
+	var state = {
+		'cloudIsReady':
+			function () {return true},
+
+		'clouds':
+			[],
+		'hero':
+			{
+				x0: 200,
+				x1: 200 + consts.hero.xLength,
+				y0: 200,
+				y1: 200 + consts.hero.yLength,
+				angle: 0,
+
+				vx: 0,
+				vy: 0,
+
+				isClipped:
+					false,
+				isDead:
+					false,
+				isFalling:
+					false
+
+			},
+
+		// reactions are temporally ordered.
+		'reactions':
+			[],
+
+		'score':
+			0
+	}
+
+	var react = {
+		"addClouds":
+			function (state) {
+				const coinFlip = state.cloudIsReady() && utils.trueWithOdds(1 / 30)
+
+				if (coinFlip) {
+					state.cloudIsReady = utils.timer(8000)
+
+					var y0 = (Math.random() * 0.5 * consts.topMost) + 0.5 * consts.topMost
+
+					const newCloud = [{
+						'x0': consts.rightMost,
+						'x1': consts.rightMost + consts.cloud.xLength,
+
+						'y0': y0,
+						'y1': y0 + consts.cloud.yLength
+					}]
+
+					state.clouds = state.clouds.concat(newCloud)
+				}
+
+				return state
+			},
+		"scrollCloudsLeft":
+			function (state) {
+
+				state.clouds = state.clouds.map(function (cloud) {
+					return {
+						'x0': cloud.x0 - consts.dx,
+						'x1': cloud.x1 - consts.dx + consts.cloud.xLength,
+
+						'y0': cloud.y0,
+						'y1': cloud.y1
+					}
+				})
+
+				return state
+
+			},
+		"removeOldClouds":
+			function (state) {
+
+				state.clouds = state.clouds.filter(function (cloud) {
+					return cloud.x0 > -100
+				})
+
+				return state
+			},
+		"clipWings":
+			function (state) {
+
+				var hero = state.hero
+
+				hero.isClipped = true
+				hero.isFalling = true
+
+				state.hero = hero
+
+				return state
+			},
+		'positionAsFlight':
+			function (state) {
+				// bob along like a bird
+
+				var hero = state.hero
+
+				hero.x0 =
+					Math.max(hero.x0, 0)
+				hero.x1 =
+					Math.max(hero.x1, 0)
+
+				hero.y0 =
+					hero.y0 + (Math.sin(hero.angle))
+				hero.y1 =
+					hero.y1 + (Math.sin(hero.angle))
+
+				hero.angle =
+					hero.angle + 0.05
+
+				state.hero = hero
+
+				return state
+			},
+		'position':
+			function (state) {
+
+				var hero = state.hero
+
+				hero.x0 = Math.max(hero.x0 + hero.vx, 0)
+				hero.x1 = Math.max(hero.x1 + hero.vx, 0)
+
+				hero.y0 = hero.y0 + hero.vy
+				hero.y1 = hero.y1 + hero.vy
+
+				state.hero = hero
+
+				return state
+			},
+		'checkCollision':
+			function (state){
+
+				var match;
+				var hero = state.hero
+
+				for (var ith = 0; ith < state.clouds.length; ith++) {
+					var cloud = state.clouds[ith]
+
+
+					var xaligned = hero.x1 > cloud.x0 && hero.x0 < cloud.x1
+					var yaligned = hero.y1 > cloud.y0 && hero.y0 < cloud.y1
+
+					if (xaligned && yaligned) {
+						match = cloud
+						break
+					}
+				}
+
+				if (match) {
+					state.hero.isFalling = false
+					alert("in")
+
+				} else {
+					state.hero.isFalling = true
+				}
+
+
+				return state
+			},
+		'updateVelocity':
+			function (state) {
+
+				var hero = state.hero
+
+				hero.vx = Math.min(
+					hero.vx, consts.terminalVelocity)
+				hero.vy = Math.min(
+					hero.vy + consts.gravity, consts.terminalVelocity)
+
+				state.hero = hero
+
+				return state
+			},
+		'registerFall':
+			function (state) {
+
+				state.hero.isDead = true
+
+				alert("you suck.")
+
+				return state
+			}
+	}
+
+	var _update = function (state) {
+		/*
+			given the state at t, calculate the state at t + dt
+			*/
+
+			var events = [
+				react.scrollCloudsLeft,
+				react.removeOldClouds,
+				react.addClouds
+			]
+
+			if (!state.hero.isClipped) {
+
+				events = events.concat([react.positionAsFlight])
+
+			} else {
+
+				events = events.concat([react.checkCollision])
+
+				if (state.hero.isFalling) {
+
+					events = events.concat([
+						react.position,
+						react.updateVelocity
+					])
+
+
+
+				}
+
+
+			}
+
+			if (state.hero.y0 > consts.topMost) {
+				events = events.concat([react.registerFall])
+			}
+
+			state.reactions = state.reactions.concat(events)
+
+			// execute every update event.
+
+			for (var ith = 0; ith < state.reactions.length; ith++) {
+				var reaction = state.reactions[ith]
+
+				if (reaction) {
+					state = reaction(state)
+				}
+			}
+			state.reactions = []
+
+			return state
+	}
+
+	var draw = {
+		'platform':
+			function (state) {
+				ctx.fillStyle =
+					consts.colours.white
+
+				state.clouds.forEach(function (cloud) {
+					ctx.fillRect(cloud.x0, cloud.y0, consts.cloud.xLength, consts.cloud.yLength)
+				})
+			},
+		'hero':
+			function (state) {
+
+				var hero = state.hero
+
+				ctx.fillStyle =
+					consts.colours.white
+
+				ctx.fillRect(hero.x0, hero.y1, consts.hero.xLength, consts.hero.yLength)
+			},
+		'score':
+			function (state) {
+
+ 				ctx.font = "30px Monospace";
+				ctx.fillText(state.score + "", consts.scoreLeft, consts.scoreTop)
+			}
+	}
+
+	var _draw = function (state) {
+
+		canvas.width = canvas.width
+
+		ctx.fillStyle = consts.colours.blue
+		ctx.strokeStyle = 'black'
+
+		ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+	    // draw each rectangle to the canvas.
+		draw.platform(state)
+
+		draw.hero(state)
+		draw.score(state)
+
+		ctx.stroke();
+	}
+
+	window.addEventListener('keydown', function (event) {
+		if (event.keyCode === keyCodes.space) {
+
+			state.reactions =
+				state.reactions.concat([react.clipWings])
+
+		}
+	})
+
+	var run = function () {
+
+		if (!state.hero.isDead) {
+			state = _update(state);
+			_draw(state)
+		}
+	}
+
+	var GAMEID = setInterval(run, 1000/60)
+	//clearInterval(pid)
+
+</script>
+</html>
