@@ -26,7 +26,7 @@
 
 	var ctx = can.getContext("2d")
 
-	var consts = ( function () {
+	var constants = ( function () {
 
 		var self = {}
 
@@ -34,7 +34,7 @@
 		self.cloud = {
 			"width": 140,
 			"height": 140 / Math.pow(1.613, 3),
-			"cloudFrequency": 1/20
+			"cloudFrequency": 1/10
 		}
 		self.bounds = {
 			'x0': -self.cloud.width,
@@ -47,7 +47,8 @@
 
 		self.colours = {
 			"blue": "#3498db",
-			"white": "#ecf0f1"
+			"white": "#ecf0f1",
+			"black": "black"
 		}
 
 		self.hero = {
@@ -63,7 +64,7 @@
 
 		self.asMagnitude =
 			function (interval) {
-				return interval / 100
+				return interval / 120
 			}
 
 		self.asVelocity =
@@ -80,7 +81,9 @@
 		return self
 	} )()
 
-	var keyCodes = {'space': 32}
+	var keyCodes = {
+		'space': 32
+	}
 
 	var utils = {
 		'timer':
@@ -121,9 +124,9 @@
 		'hero':
 			{
 				x0: 200,
-				x1: 200 + consts.hero.width,
+				x1: 200 + constants.hero.width,
 				y0: 200,
-				y1: 200 + consts.hero.height,
+				y1: 200 + constants.hero.height,
 				angle: 0,
 
 				vx: 0,
@@ -149,8 +152,8 @@
 		'score':
 			{
 				value: 0,
-				x0: consts.score.x0,
-				y0: consts.score.y0
+				x0: constants.score.x0,
+				y0: constants.score.y0
 			},
 		'nextCloud': 0
 	}
@@ -158,22 +161,22 @@
 	var react = {
 		"addClouds":
 			function (state) {
-				const coinFlip = utils.trueWithOdds(consts.cloud.cloudFrequency)
+				const coinFlip = utils.trueWithOdds(constants.cloud.cloudFrequency)
 
 				if (coinFlip && state.cloudIsReady()) {
 
 					state.cloudIsReady = utils.timer(6000)
 
 					var y0 = utils.randBetween(
-						1 / 3 * consts.bounds.y1,
-						2 / 3 * consts.bounds.y1)
+						1 / 3 * constants.bounds.y1,
+						2 / 3 * constants.bounds.y1)
 
 					const newCloud = [{
-						'x0': consts.bounds.x1,
-						'x1': consts.bounds.x1 + consts.cloud.width,
+						'x0': constants.bounds.x1,
+						'x1': constants.bounds.x1 + constants.cloud.width,
 
 						'y0': y0,
-						'y1': y0 + consts.cloud.height,
+						'y1': y0 + constants.cloud.height,
 
 						'cloudId': state.nextCloud
 					}]
@@ -189,8 +192,8 @@
 
 				state.clouds = state.clouds.map(function (cloud) {
 
-					cloud.x0 -= consts.dx
-					cloud.x1 -= consts.dx
+					cloud.x0 -= constants.dx
+					cloud.x1 -= constants.dx
 
 					return cloud
 				})
@@ -202,7 +205,7 @@
 			function (state) {
 
 				state.clouds = state.clouds.filter(function (cloud) {
-					return cloud.x0 > consts.bounds.x0
+					return cloud.x0 > constants.bounds.x0
 				})
 
 				return state
@@ -248,8 +251,12 @@
 
 				var hero = state.hero
 
-				hero.x0 = hero.x0 - consts.dx
-				hero.x1 = hero.x1 - consts.dx
+				if (hero.positionType === "standing") {
+					hero.x0 = hero.x0 - constants.dx
+					hero.x1 = hero.x1 - constants.dx
+				}
+
+				state.hero = hero
 
 				return state
 			},
@@ -257,13 +264,19 @@
 			function (state){
 				/*
 				*/
+				var hit = false
 				var hero = state.hero
+
 				var match = utils.flatmap(state.clouds, function (cloud) {
 
 					var xAligned = state.hero.x1 > cloud.x0 && state.hero.x0 < cloud.x1
 					var yAligned = state.hero.y1 > cloud.y0 && state.hero.y0 < cloud.y1
 
-					if (xAligned && yAligned) {
+					var xTooCloseToEdge = hero.x1 < cloud.x0 + 5
+
+					if (yAligned && xAligned && xTooCloseToEdge) {
+						hit = true
+					} else if (xAligned && yAligned) {
 						return cloud
 					} else {
 						return []
@@ -272,6 +285,18 @@
 
 				if (match.length == 0) {
 					hero.positionType = 'falling'
+				} else if (hit) {
+					// reverse the state direction.
+
+					hero.vx = -hero.vx
+
+					hero.x0 -= 3
+					hero.x1 -= 3
+
+					hero.positionType = "dying"
+
+					hit = false
+
 				} else {
 					hero.positionType = 'standing'
 
@@ -279,12 +304,12 @@
 
 						state.score.value = state.score.value + 1
 						hero.last = match[0].cloudId
-
-						console.log(match)
 					}
 
-					hero.y0 = match[0].y0 - consts.hero.height
-					hero.y1 = match[0].y1
+					// vertically translate the player, to make
+					// stand on platform.
+					hero.y0 = match[0].y0 + 1 - constants.hero.height
+					hero.y1 = match[0].y0 + 1
 				}
 
 				state.hero = hero
@@ -302,7 +327,7 @@
 				hero.y0 = hero.y0 + hero.vy
 				hero.y1 = hero.y1 + hero.vy
 
-				hero.vy = consts.asVelocity(hero.vy + (consts.gravity * consts.frameTime))
+				hero.vy = constants.asVelocity(hero.vy + (constants.gravity * constants.frameTime))
 
 				state.hero = hero
 
@@ -317,14 +342,15 @@
 
 				var hero = state.hero
 
-				if (hero.y1 > consts.bounds.y1) {
+				if (hero.y1 > constants.bounds.y1 || hero.x0 < constants.bounds.x0 ||
+					hero.y0 < constants.bounds.y0 || hero.x1 > constants.bounds.x1) {
 					state.hero.isDead = true
 				}
 				state.hero = hero
 
 				return state
 			},
-		'queueJump':
+		'beginJumpPowerup':
 			function (time) {
 				return function (state) {
 					/*
@@ -351,11 +377,11 @@
 						return state
 					}
 
-					var magnitude = consts.asMagnitude(time - state.jumpStart.time)
+					var magnitude = constants.asMagnitude(time - state.jumpStart.time)
 					var hero = state.hero
 
 					// squelch accidental taps.
-					if (magnitude > consts.asMagnitude(40)) {
+					if (magnitude > constants.asMagnitude(40)) {
 
 						var mouse = {
 							'x': x - canvas.offsetLeft,
@@ -369,16 +395,14 @@
 
 						var angle = Math.atan(dist.y / dist.x)
 
-						hero.vx = consts.asVelocity(
+						hero.vx = constants.asVelocity(
 							magnitude * (Math.cos(angle)) )
 
-						hero.vy = consts.asVelocity(
+						hero.vy = constants.asVelocity(
 							magnitude * (Math.sin(angle)) )
 
-						console.log( hero )
-
-						hero.y0 -= 34
-						hero.y1 -= 34
+						hero.y0 -= 1
+						hero.y1 -= 1
 
 						hero.positionType = 'falling'
 					}
@@ -449,10 +473,10 @@
 					plot each cloud.
 				*/
 
-				ctx.fillStyle = consts.colours.white
+				ctx.fillStyle = constants.colours.white
 
 				state.clouds.forEach(function (cloud) {
-					ctx.fillRect(cloud.x0, cloud.y0, consts.cloud.width, consts.cloud.height)
+					ctx.fillRect(cloud.x0, cloud.y0, constants.cloud.width, constants.cloud.height)
 				})
 			},
 		'hero':
@@ -460,9 +484,9 @@
 
 				var hero = state.hero
 
-				ctx.fillStyle = consts.colours.white
+				ctx.fillStyle = constants.colours.white
 				ctx.fillRect(
-					hero.x0, hero.y0, consts.hero.width, consts.hero.height)
+					hero.x0, hero.y0, constants.hero.width, constants.hero.height)
 			},
 		'score':
 			function (state) {
@@ -470,7 +494,40 @@
  				ctx.font = "30px Monospace";
 				ctx.fillText(
 					state.score.value + "",
-					consts.score.x0, consts.score.y0)
+					constants.score.x0, constants.score.y0)
+			},
+		'deathScreen':
+			function (state) {
+
+				ctx.fillStyle = 'rgba(0,0,0,0.4)'
+
+				ctx.fillRect(
+					constants.bounds.x0, constants.bounds.y0,
+					constants.bounds.x1, constants.bounds.y1)
+
+				ctx.fillStyle = constants.colours.blue
+
+				ctx.fillRect(
+					constants.bounds.x0, 200,
+					constants.bounds.x1, 100)
+
+ 				ctx.font = "20px Monospace";
+				ctx.fillStyle = constants.colours.white
+
+				value = state.score.value
+
+				if (value < 3) {
+					var message = "Try Harder. Score: " + value
+				} else if (value < 10) {
+					var message = ". Score: " + value
+				} else {
+					var message = "Well done. Score: " + value
+				}
+
+				ctx.fillText(
+					"Try harder." +
+					"Score: " + state.score.value,
+					constants.score.x0, 265)
 			}
 	}
 
@@ -481,8 +538,8 @@
 
 		canvas.width = canvas.width
 
-		ctx.fillStyle = consts.colours.blue
-		ctx.strokeStyle = 'black'
+		ctx.fillStyle = constants.colours.blue
+		ctx.strokeStyle = constants.colours.black
 
 		ctx.fillRect(0, 0, canvas.width, canvas.height)
 
@@ -506,7 +563,7 @@
 	window.addEventListener('mousedown', function (event) {
 
 		state.reactions =
-			state.reactions.concat([react.queueJump((new Date).getTime() )])
+			state.reactions.concat([react.beginJumpPowerup((new Date).getTime() )])
 	})
 
 	window.addEventListener('mouseup', function (event) {
@@ -525,11 +582,12 @@
 		if (!state.hero.isDead) {
 			state = _update(state);
 			_draw(state)
+		} else {
+			draw.deathScreen(state)
+			clearInterval(GAMEID)
 		}
 	}
-
 	var GAMEID = setInterval(loop, 1000/60)
-	//clearInterval(pid)
 
 </script>
 </html>
