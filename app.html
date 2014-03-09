@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
 	<title></title>
 
@@ -7,6 +8,9 @@
 <style type="text/css">
 	canvas  {
 		margin-left: 400px;
+	}
+	* {
+		cursor: none;
 	}
 </style>
 <body>
@@ -22,50 +26,61 @@
 
 	var ctx = can.getContext("2d")
 
-	var consts = {
-		'dx':
-			1,
+	var consts = ( function () {
 
-		'leftMost':
-			-50,
-		'rightMost':
-			can.width + 50,
-		'topMost':
-			can.height + 50,
-		'bottomMost':
-			-50,
+		var self = {}
 
-		terminalVelocity:
-			10,
-		gravity:
-			0.2,
-
-		colours:
-			{
-				"blue": "#3498db",
-				"white": "#ecf0f1"
-			},
-
-		scoreLeft:
-			canvas.width - ( canvas.width / Math.pow(1.618, 4) ),
-
-		scoreTop:
-			50,
-
-		cloud: {
-			xLength: 90,
-			yLength: 90 / 3
-		},
-		hero: {
-			xLength: 15,
-			yLength: 40
+		self.dx = 1.2
+		self.cloud = {
+			"width": 140,
+			"height": 140 / Math.pow(1.613, 3),
+			"cloudFrequency": 1/20
 		}
-	}
+		self.bounds = {
+			'x0': -self.cloud.width,
+			'x1': can.width + self.cloud.width,
+			'y0': -50,
+			'y1': can.height + 50,
+		}
 
-	var keyCodes = {
-		'space':
-			32
-	}
+		self.gravity = 9.8,
+
+		self.colours = {
+			"blue": "#3498db",
+			"white": "#ecf0f1"
+		}
+
+		self.hero = {
+			"width": 15,
+			"height": 40
+		}
+		self.score = {
+			"x0": 100,
+			"y0": 50
+		}
+		self.frameTime =
+			1/60
+
+		self.asMagnitude =
+			function (interval) {
+				return interval / 100
+			}
+
+		self.asVelocity =
+			function (velocity) {
+				var terminalVelocity = 8
+
+				if (velocity > 0) {
+					return Math.min(velocity, terminalVelocity)
+				} else {
+					return Math.max(velocity, -terminalVelocity)
+				}
+			}
+
+		return self
+	} )()
+
+	var keyCodes = {'space': 32}
 
 	var utils = {
 		'timer':
@@ -79,8 +94,22 @@
 			},
 		'trueWithOdds':
 			function (p) {
-			return Math.random() < p
-		}
+				return Math.random() < p
+			},
+		'randBetween':
+			function (lower, upper) {
+				return (Math.random() * (upper-lower)) + lower
+			},
+		'flatmap':
+			function (coll, fn) {
+
+				var out = []
+
+				for (var ith = 0; ith < coll.length; ith++) {
+					out = out.concat( fn(coll[ith]) )
+				}
+				return out
+			}
 	}
 
 	// the initial state
@@ -88,54 +117,68 @@
 		'cloudIsReady':
 			function () {return true},
 
-		'clouds':
-			[],
+		'clouds': [],
 		'hero':
 			{
 				x0: 200,
-				x1: 200 + consts.hero.xLength,
+				x1: 200 + consts.hero.width,
 				y0: 200,
-				y1: 200 + consts.hero.yLength,
+				y1: 200 + consts.hero.height,
 				angle: 0,
 
 				vx: 0,
 				vy: 0,
+				ax: 0,
+				ay: 0,
 
-				isClipped:
-					false,
 				isDead:
 					false,
-				isFalling:
-					false
 
+				positionType:
+					'flying',
+
+				last: -1,
+
+				jumpStart: {
+
+				}
 			},
 
 		// reactions are temporally ordered.
-		'reactions':
-			[],
-
+		'reactions': [],
 		'score':
-			0
+			{
+				value: 0,
+				x0: consts.score.x0,
+				y0: consts.score.y0
+			},
+		'nextCloud': 0
 	}
 
 	var react = {
 		"addClouds":
 			function (state) {
-				const coinFlip = state.cloudIsReady() && utils.trueWithOdds(1 / 30)
+				const coinFlip = utils.trueWithOdds(consts.cloud.cloudFrequency)
 
-				if (coinFlip) {
-					state.cloudIsReady = utils.timer(8000)
+				if (coinFlip && state.cloudIsReady()) {
 
-					var y0 = (Math.random() * 0.5 * consts.topMost) + 0.5 * consts.topMost
+					state.cloudIsReady = utils.timer(6000)
+
+					var y0 = utils.randBetween(
+						1 / 3 * consts.bounds.y1,
+						2 / 3 * consts.bounds.y1)
 
 					const newCloud = [{
-						'x0': consts.rightMost,
-						'x1': consts.rightMost + consts.cloud.xLength,
+						'x0': consts.bounds.x1,
+						'x1': consts.bounds.x1 + consts.cloud.width,
 
 						'y0': y0,
-						'y1': y0 + consts.cloud.yLength
+						'y1': y0 + consts.cloud.height,
+
+						'cloudId': state.nextCloud
 					}]
 
+					state.nextCloud += 1
 					state.clouds = state.clouds.concat(newCloud)
 				}
 
@@ -145,13 +188,11 @@
 			function (state) {
 
 				state.clouds = state.clouds.map(function (cloud) {
-					return {
-						'x0': cloud.x0 - consts.dx,
-						'x1': cloud.x1 - consts.dx + consts.cloud.xLength,
 
-						'y0': cloud.y0,
-						'y1': cloud.y1
-					}
+					cloud.x0 -= consts.dx
+					cloud.x1 -= consts.dx
+
+					return cloud
 				})
 
 				return state
@@ -161,24 +202,25 @@
 			function (state) {
 
 				state.clouds = state.clouds.filter(function (cloud) {
-					return cloud.x0 > -100
+					return cloud.x0 > consts.bounds.x0
 				})
 
 				return state
 			},
 		"clipWings":
 			function (state) {
+				/*
+					transition from the flying state to the falling state.
+				*/
 
 				var hero = state.hero
 
-				hero.isClipped = true
-				hero.isFalling = true
-
+				hero.positionType = 'falling'
 				state.hero = hero
 
 				return state
 			},
-		'positionAsFlight':
+		'flyAlong':
 			function (state) {
 				// bob along like a bird
 
@@ -190,9 +232,9 @@
 					Math.max(hero.x1, 0)
 
 				hero.y0 =
-					hero.y0 + (Math.sin(hero.angle))
+					hero.y0 + (0.4 * Math.sin(hero.angle))
 				hero.y1 =
-					hero.y1 + (Math.sin(hero.angle))
+					hero.y1 + (0.4 * Math.sin(hero.angle))
 
 				hero.angle =
 					hero.angle + 0.05
@@ -201,7 +243,55 @@
 
 				return state
 			},
-		'position':
+		'standStill':
+			function (state) {
+
+				var hero = state.hero
+
+				hero.x0 = hero.x0 - consts.dx
+				hero.x1 = hero.x1 - consts.dx
+
+				return state
+			},
+		'checkOnPlatform':
+			function (state){
+				/*
+				*/
+				var hero = state.hero
+				var match = utils.flatmap(state.clouds, function (cloud) {
+
+					var xAligned = state.hero.x1 > cloud.x0 && state.hero.x0 < cloud.x1
+					var yAligned = state.hero.y1 > cloud.y0 && state.hero.y0 < cloud.y1
+
+					if (xAligned && yAligned) {
+						return cloud
+					} else {
+						return []
+					}
+				})
+
+				if (match.length == 0) {
+					hero.positionType = 'falling'
+				} else {
+					hero.positionType = 'standing'
+
+					if (hero.last !== match[0].cloudId) {
+
+						state.score.value = state.score.value + 1
+						hero.last = match[0].cloudId
+
+						console.log(match)
+					}
+
+					hero.y0 = match[0].y0 - consts.hero.height
+					hero.y1 = match[0].y1
+				}
+
+				state.hero = hero
+
+				return state
+			},
+		'addGravity':
 			function (state) {
 
 				var hero = state.hero
@@ -212,63 +302,95 @@
 				hero.y0 = hero.y0 + hero.vy
 				hero.y1 = hero.y1 + hero.vy
 
+				hero.vy = consts.asVelocity(hero.vy + (consts.gravity * consts.frameTime))
+
 				state.hero = hero
 
 				return state
 			},
-		'checkCollision':
-			function (state){
+		'killWhenOffscreen':
+			function (state) {
+				/*
+					check if the player is offscreen,
+					and if he or she is append an event.
+				*/
 
-				var match;
 				var hero = state.hero
 
-				for (var ith = 0; ith < state.clouds.length; ith++) {
-					var cloud = state.clouds[ith]
+				if (hero.y1 > consts.bounds.y1) {
+					state.hero.isDead = true
+				}
+				state.hero = hero
 
+				return state
+			},
+		'queueJump':
+			function (time) {
+				return function (state) {
+					/*
+						register that we are getting ready to jump.
+					*/
 
-					var xaligned = hero.x1 > cloud.x0 && hero.x0 < cloud.x1
-					var yaligned = hero.y1 > cloud.y0 && hero.y0 < cloud.y1
-
-					if (xaligned && yaligned) {
-						match = cloud
-						break
+					if (state.hero.positionType === 'standing') {
+						state.jumpStart = {
+							'time': time
+						}
 					}
+
+					return state
 				}
+			},
+		'jump':
+			function (x, y, time) {
+				/*
+					jump.
+				*/
+				return function (state) {
 
-				if (match) {
-					state.hero.isFalling = false
-					alert("in")
+					if (state.hero.positionType !== "standing") {
+						return state
+					}
 
-				} else {
-					state.hero.isFalling = true
+					var magnitude = consts.asMagnitude(time - state.jumpStart.time)
+					var hero = state.hero
+
+					// squelch accidental taps.
+					if (magnitude > consts.asMagnitude(40)) {
+
+						var mouse = {
+							'x': x - canvas.offsetLeft,
+							'y': y - canvas.offsetTop
+						}
+
+						var dist = {
+							'x': mouse.x - hero.x0,
+							'y': mouse.y - hero.y1
+						}
+
+						var angle = Math.atan(dist.y / dist.x)
+
+						hero.vx = consts.asVelocity(
+							magnitude * (Math.cos(angle)) )
+
+						hero.vy = consts.asVelocity(
+							magnitude * (Math.sin(angle)) )
+
+						console.log( hero )
+
+						hero.y0 -= 34
+						hero.y1 -= 34
+
+						hero.positionType = 'falling'
+					}
+
+					state.jumpStart = {}
+					state.hero = hero
+
+					return state
 				}
-
-
-				return state
-			},
-		'updateVelocity':
-			function (state) {
-
-				var hero = state.hero
-
-				hero.vx = Math.min(
-					hero.vx, consts.terminalVelocity)
-				hero.vy = Math.min(
-					hero.vy + consts.gravity, consts.terminalVelocity)
-
-				state.hero = hero
-
-				return state
-			},
-		'registerFall':
-			function (state) {
-
-				state.hero.isDead = true
-
-				alert("you suck.")
-
-				return state
 			}
+
+
 	}
 
 	var _update = function (state) {
@@ -279,38 +401,34 @@
 			var events = [
 				react.scrollCloudsLeft,
 				react.removeOldClouds,
-				react.addClouds
+				react.addClouds,
+				react.killWhenOffscreen
 			]
 
-			if (!state.hero.isClipped) {
+			if (state.hero.positionType === 'flying') {
 
-				events = events.concat([react.positionAsFlight])
+				events = events.concat([react.flyAlong])
 
 			} else {
 
-				events = events.concat([react.checkCollision])
 
-				if (state.hero.isFalling) {
+				if (state.hero.positionType === 'falling') {
 
-					events = events.concat([
-						react.position,
-						react.updateVelocity
-					])
+					events = events.concat([react.addGravity])
 
+				} else {
 
+					events = events.concat([react.standStill])
 
 				}
-
-
-			}
-
-			if (state.hero.y0 > consts.topMost) {
-				events = events.concat([react.registerFall])
+				events = events.concat([react.checkOnPlatform])
 			}
 
 			state.reactions = state.reactions.concat(events)
 
-			// execute every update event.
+			/*
+				consume every event in the queue, in order.
+			*/
 
 			for (var ith = 0; ith < state.reactions.length; ith++) {
 				var reaction = state.reactions[ith]
@@ -325,13 +443,16 @@
 	}
 
 	var draw = {
-		'platform':
+		'cloud':
 			function (state) {
-				ctx.fillStyle =
-					consts.colours.white
+				/*
+					plot each cloud.
+				*/
+
+				ctx.fillStyle = consts.colours.white
 
 				state.clouds.forEach(function (cloud) {
-					ctx.fillRect(cloud.x0, cloud.y0, consts.cloud.xLength, consts.cloud.yLength)
+					ctx.fillRect(cloud.x0, cloud.y0, consts.cloud.width, consts.cloud.height)
 				})
 			},
 		'hero':
@@ -339,20 +460,24 @@
 
 				var hero = state.hero
 
-				ctx.fillStyle =
-					consts.colours.white
-
-				ctx.fillRect(hero.x0, hero.y1, consts.hero.xLength, consts.hero.yLength)
+				ctx.fillStyle = consts.colours.white
+				ctx.fillRect(
+					hero.x0, hero.y0, consts.hero.width, consts.hero.height)
 			},
 		'score':
 			function (state) {
 
  				ctx.font = "30px Monospace";
-				ctx.fillText(state.score + "", consts.scoreLeft, consts.scoreTop)
+				ctx.fillText(
+					state.score.value + "",
+					consts.score.x0, consts.score.y0)
 			}
 	}
 
 	var _draw = function (state) {
+		/*
+			given the current state draw each entity to the screen.
+		*/
 
 		canvas.width = canvas.width
 
@@ -362,7 +487,7 @@
 		ctx.fillRect(0, 0, canvas.width, canvas.height)
 
 	    // draw each rectangle to the canvas.
-		draw.platform(state)
+		draw.cloud(state)
 
 		draw.hero(state)
 		draw.score(state)
@@ -378,8 +503,24 @@
 
 		}
 	})
+	window.addEventListener('mousedown', function (event) {
 
-	var run = function () {
+		state.reactions =
+			state.reactions.concat([react.queueJump((new Date).getTime() )])
+	})
+
+	window.addEventListener('mouseup', function (event) {
+
+		state.reactions =
+			state.reactions.concat([react.jump(
+				event.pageX, event.pageY, (new Date).getTime() )])
+	})
+
+
+	var loop = function () {
+		/*
+			repeatedly update the state.
+		*/
 
 		if (!state.hero.isDead) {
 			state = _update(state);
@@ -387,7 +528,7 @@
 		}
 	}
 
-	var GAMEID = setInterval(run, 1000/60)
+	var GAMEID = setInterval(loop, 1000/60)
 	//clearInterval(pid)
 
 </script>
