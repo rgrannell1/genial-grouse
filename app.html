@@ -406,15 +406,15 @@
 						}
 
 						var dist = {
-							'x': -Math.abs(mouse.x - hero.x1),
-							'y': Math.abs(mouse.y - hero.y1)
+							'x': mouse.x - hero.x1,
+							'y': mouse.y - hero.y1
 						}
 
 						var angle = Math.atan(dist.y / dist.x)
 
 						var velocities = {
 							'x':
-								-constants.asVelocity( magnitude * Math.sin(angle) ),
+								constants.asVelocity( magnitude * Math.cos(angle) ),
 							'y':
 								constants.asVelocity( magnitude * Math.sin(angle) )
 						}
