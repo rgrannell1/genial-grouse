@@ -8,16 +8,22 @@
 <style type="text/css">
 	canvas  {
 		margin-left: 400px;
+		background:url(assets/background.png) center
 	}
+
 	* {
 		cursor: none;
 	}
+
+	#bird {
+		display: none
+	}
+
 </style>
+<img id = "bird" src = "assets/bird.png"><img>
 <body>
 
-	<canvas id = "canvas" width = "600" height = "600">
-
-	</canvas>
+	<canvas id = "canvas" width = "600" height = "600">	</canvas>
 
 </body>
 <script type="text/javascript">
@@ -30,7 +36,11 @@
 
 		var self = {}
 
-		self.dx = 1.2
+		self.steps = 1
+
+		// let the sidescroll be a function of time.
+		self.dx = (1.8) + (0.5 * self.steps)
+
 		self.cloud = {
 			"width": 140,
 			"height": 140 / Math.pow(1.613, 3),
@@ -52,8 +62,8 @@
 		}
 
 		self.hero = {
-			"width": 15,
-			"height": 40
+			"width": 32,
+			"height": 32
 		}
 		self.score = {
 			"x0": 100,
@@ -64,7 +74,7 @@
 
 		self.asMagnitude =
 			function (interval) {
-				return interval / 120
+				return 2.5  * Math.log(interval / 25)
 			}
 
 		self.asVelocity =
@@ -165,7 +175,7 @@
 
 				if (coinFlip && state.cloudIsReady()) {
 
-					state.cloudIsReady = utils.timer(6000)
+					state.cloudIsReady = utils.timer(2000)
 
 					var y0 = utils.randBetween(
 						1 / 3 * constants.bounds.y1,
@@ -218,7 +228,10 @@
 
 				var hero = state.hero
 
-				hero.positionType = 'falling'
+				if (hero.positionType === "flying") {
+					hero.positionType = 'falling'
+				}
+
 				state.hero = hero
 
 				return state
@@ -234,10 +247,11 @@
 				hero.x1 =
 					Math.max(hero.x1, 0)
 
-				hero.y0 =
-					hero.y0 + (0.4 * Math.sin(hero.angle))
-				hero.y1 =
-					hero.y1 + (0.4 * Math.sin(hero.angle))
+				var yOffset =
+					0.5 * Math.sin(3* hero.angle)
+
+				hero.y0 += yOffset
+				hero.y1 += yOffset
 
 				hero.angle =
 					hero.angle + 0.05
@@ -273,10 +287,11 @@
 					var yAligned = state.hero.y1 > cloud.y0 && state.hero.y0 < cloud.y1
 
 					var xTooCloseToEdge = hero.x1 < cloud.x0 + 5
+					var yIncorrectDirection = hero.vy < 0
 
 					if (yAligned && xAligned && xTooCloseToEdge) {
 						hit = true
-					} else if (xAligned && yAligned) {
+					} else if (xAligned && yAligned && !yIncorrectDirection) {
 						return cloud
 					} else {
 						return []
@@ -288,7 +303,9 @@
 				} else if (hit) {
 					// reverse the state direction.
 
-					hero.vx = -hero.vx
+					if (hero.vx > 0) {
+						hero.vx = -hero.vx
+					}
 
 					hero.x0 -= 3
 					hero.x1 -= 3
@@ -357,8 +374,8 @@
 						register that we are getting ready to jump.
 					*/
 
-					if (state.hero.positionType === 'standing') {
-						state.jumpStart = {
+					if (state.hero.positionType === 'standing' || state.hero.positionType === "falling") {
+						state.hero.jumpStart = {
 							'time': time
 						}
 					}
@@ -377,7 +394,7 @@
 						return state
 					}
 
-					var magnitude = constants.asMagnitude(time - state.jumpStart.time)
+					var magnitude = constants.asMagnitude(time - state.hero.jumpStart.time)
 					var hero = state.hero
 
 					// squelch accidental taps.
@@ -389,17 +406,21 @@
 						}
 
 						var dist = {
-							'x': mouse.x - hero.x0,
-							'y': mouse.y - hero.y1
+							'x': -Math.abs(mouse.x - hero.x1),
+							'y': Math.abs(mouse.y - hero.y1)
 						}
 
 						var angle = Math.atan(dist.y / dist.x)
 
-						hero.vx = constants.asVelocity(
-							magnitude * (Math.cos(angle)) )
+						var velocities = {
+							'x':
+								-constants.asVelocity( magnitude * Math.sin(angle) ),
+							'y':
+								constants.asVelocity( magnitude * Math.sin(angle) )
+						}
 
-						hero.vy = constants.asVelocity(
-							magnitude * (Math.sin(angle)) )
+						hero.vx = velocities.x
+						hero.vy = velocities.y
 
 						hero.y0 -= 1
 						hero.y1 -= 1
@@ -407,7 +428,7 @@
 						hero.positionType = 'falling'
 					}
 
-					state.jumpStart = {}
+					hero.jumpStart = {}
 					state.hero = hero
 
 					return state
@@ -462,6 +483,7 @@
 				}
 			}
 			state.reactions = []
+			state.steps += 1
 
 			return state
 	}
@@ -483,10 +505,18 @@
 			function (state) {
 
 				var hero = state.hero
+				var birdy = document.getElementById("bird")
 
-				ctx.fillStyle = constants.colours.white
-				ctx.fillRect(
-					hero.x0, hero.y0, constants.hero.width, constants.hero.height)
+				if (hero.jumpStart.time) {
+					ctx.fillStyle = constants.colours.black
+				} else {
+					ctx.fillStyle = constants.colours.white
+				}
+
+				ctx.drawImage(birdy, hero.x0, hero.y0)
+
+				//ctx.fillRect(
+				//	hero.x0, hero.y0, constants.hero.width, constants.hero.height)
 			},
 		'score':
 			function (state) {
@@ -499,7 +529,7 @@
 		'deathScreen':
 			function (state) {
 
-				ctx.fillStyle = 'rgba(0,0,0,0.4)'
+				ctx.fillStyle = 'rgba(0,0,0,0.6)'
 
 				ctx.fillRect(
 					constants.bounds.x0, constants.bounds.y0,
@@ -518,7 +548,7 @@
 
 				if (value < 3) {
 					var message = "Try Harder. Score: " + value
-				} else if (value < 10) {
+				} 	else if (value < 10) {
 					var message = ". Score: " + value
 				} else {
 					var message = "Well done. Score: " + value
@@ -537,11 +567,6 @@
 		*/
 
 		canvas.width = canvas.width
-
-		ctx.fillStyle = constants.colours.blue
-		ctx.strokeStyle = constants.colours.black
-
-		ctx.fillRect(0, 0, canvas.width, canvas.height)
 
 	    // draw each rectangle to the canvas.
 		draw.cloud(state)
@@ -587,7 +612,11 @@
 			clearInterval(GAMEID)
 		}
 	}
+
 	var GAMEID = setInterval(loop, 1000/60)
+
+
+
 
 </script>
 </html>
