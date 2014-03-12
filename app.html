@@ -11,10 +11,6 @@
 		background:url(assets/background.png) center
 	}
 
-	* {
-		cursor: none;
-	}
-
 	#bird {
 		display: none
 	}
@@ -29,8 +25,39 @@
 <script type="text/javascript">
 
 	var can = document.getElementById("canvas")
-
 	var ctx = can.getContext("2d")
+
+	var always = ( function () {
+		/*
+			Contract functions.
+			Return a value if it meets criteria, otherwise throws an error.
+		*/
+
+		return {
+			'whole':
+				whole => {
+					// Is a number a whole number that isn't NaN?
+
+					if (whole === whole && whole % 1 === 0) {
+						return whole
+					} else {
+						throw new TypeError("Something ")
+					}
+				},
+			'numeric':
+				numeric => {
+					if (numeric === numeric) {
+						return numeric
+					} else {
+						throw new TypeError("Something ")
+					}
+				}
+		}
+
+	} )()
+
+
+
 
 	var constants = ( function () {
 
@@ -73,12 +100,12 @@
 			1/60
 
 		self.asMagnitude =
-			function (interval) {
-				return 2.5  * Math.log(interval / 25)
+			(interval) => {
+				return 5.5  * Math.log(interval / 25)
 			}
 
 		self.asVelocity =
-			function (velocity) {
+			(velocity) => {
 				var terminalVelocity = 8
 
 				if (velocity > 0) {
@@ -97,7 +124,7 @@
 
 	var utils = {
 		'timer':
-			function (milliseconds) {
+			milliseconds => {
 
 				var genesis = (new Date).getTime()
 
@@ -106,15 +133,15 @@
 				}
 			},
 		'trueWithOdds':
-			function (p) {
-				return Math.random() < p
+			prob => {
+				return Math.random() < prob
 			},
 		'randBetween':
-			function (lower, upper) {
+			(lower, upper) => {
 				return (Math.random() * (upper-lower)) + lower
 			},
 		'flatmap':
-			function (coll, fn) {
+			(coll, fn) => {
 
 				var out = []
 
@@ -123,6 +150,39 @@
 				}
 				return out
 			}
+	}
+
+	var Cloud = step => {
+		/*
+			a skeleton cloud trajectory function, with
+			several variable not yet closed over. Must be called with bind.
+		*/
+
+		return {
+			x0: constants.bounds.x1 - (constants.dx * (step - this.init)),
+			x1: constants.bounds.x1 - (constants.dx * (step - this.init)) + constants.cloud.width,
+
+			y0: this.y0,
+			y1: this.y1,
+
+			cloudId: this.cloudId
+		}
+	}
+
+	var jumpingHero = t => {
+		/*
+			given an initial v→ generate a function giving
+			the players position at a given step. This closed form
+			makes it easier to raycast collisions.
+		*/
+
+		return {
+			x0: always.numeric(this.initialx0 + this.initialVx * t),
+			x1: always.numeric(this.initialx1 + this.initialVx * t),
+
+			y0: always.numeric(this.initialy0 + this.initialVy * t + 0.5 * this.Ay * t^2),
+			y1: always.numeric(this.initialy1 + this.initialVy * t + 0.5 * this.Ay * t^2)
+		}
 	}
 
 	// the initial state
@@ -139,6 +199,7 @@
 				y1: 200 + constants.hero.height,
 				angle: 0,
 
+				// will be reduntant; motion will be a function soon.
 				vx: 0,
 				vy: 0,
 				ax: 0,
@@ -165,63 +226,53 @@
 				x0: constants.score.x0,
 				y0: constants.score.y0
 			},
-		'nextCloud': 0
+		'nextCloud': 0,
+		'steps': 0
 	}
 
 	var react = {
 		"addClouds":
-			function (state) {
-				const coinFlip = utils.trueWithOdds(constants.cloud.cloudFrequency)
+			state => {
 
-				if (coinFlip && state.cloudIsReady()) {
+				state.clouds = state.clouds.concat( ( function () {
 
-					state.cloudIsReady = utils.timer(2000)
+					var init = state.steps
 
 					var y0 = utils.randBetween(
-						1 / 3 * constants.bounds.y1,
+						1 / 10 * constants.bounds.y1,
 						2 / 3 * constants.bounds.y1)
 
-					const newCloud = [{
-						'x0': constants.bounds.x1,
-						'x1': constants.bounds.x1 + constants.cloud.width,
+					var y1 = y0 + constants.cloud.height
 
-						'y0': y0,
-						'y1': y0 + constants.cloud.height,
+					var enclosed = {
+						init: state.steps,
+						y0: y0, y1: y1
+					}
 
-						'cloudId': state.nextCloud
-					}]
+					return Cloud.bind({
+						init: state.steps,
+						y0: y0,
+						y1: y1,
+						cloudId: state.nextCloud
+					})
 
-					state.nextCloud += 1
-					state.clouds = state.clouds.concat(newCloud)
-				}
+				} )() )
 
-				return state
-			},
-		"scrollCloudsLeft":
-			function (state) {
-
-				state.clouds = state.clouds.map(function (cloud) {
-
-					cloud.x0 -= constants.dx
-					cloud.x1 -= constants.dx
-
-					return cloud
-				})
+				state.nextCloud = always.whole(state.nextCloud + 1)
 
 				return state
-
 			},
 		"removeOldClouds":
-			function (state) {
+			state => {
 
 				state.clouds = state.clouds.filter(function (cloud) {
-					return cloud.x0 > constants.bounds.x0
+					return Cloud(state.steps).x0 > constants.bounds.x0
 				})
 
 				return state
 			},
 		"clipWings":
-			function (state) {
+			state => {
 				/*
 					transition from the flying state to the falling state.
 				*/
@@ -237,15 +288,15 @@
 				return state
 			},
 		'flyAlong':
-			function (state) {
+			state => {
 				// bob along like a bird
 
 				var hero = state.hero
 
 				hero.x0 =
-					Math.max(hero.x0, 0)
+					always.numeric(Math.max(hero.x0, 0))
 				hero.x1 =
-					Math.max(hero.x1, 0)
+					always.numeric(Math.max(hero.x1, 0))
 
 				var yOffset =
 					0.5 * Math.sin(3* hero.angle)
@@ -261,7 +312,7 @@
 				return state
 			},
 		'standStill':
-			function (state) {
+			state => {
 
 				var hero = state.hero
 
@@ -275,24 +326,25 @@
 				return state
 			},
 		'checkOnPlatform':
-			function (state){
-				/*
-				*/
+			state => {
+
 				var hit = false
 				var hero = state.hero
 
-				var match = utils.flatmap(state.clouds, function (cloud) {
+				var match = utils.flatmap(state.clouds, cloud => {
 
-					var xAligned = state.hero.x1 > cloud.x0 && state.hero.x0 < cloud.x1
-					var yAligned = state.hero.y1 > cloud.y0 && state.hero.y0 < cloud.y1
+					var coords = cloud(state.steps)
 
-					var xTooCloseToEdge = hero.x1 < cloud.x0 + 5
+					var xAligned = state.hero.x1 > coords.x0 && state.hero.x0 < coords.x1
+					var yAligned = state.hero.y1 > coords.y0 && state.hero.y0 < coords.y1
+
+					var xTooCloseToEdge = hero.x1 < coords.x0 + 5
 					var yIncorrectDirection = hero.vy < 0
 
 					if (yAligned && xAligned && xTooCloseToEdge) {
 						hit = true
 					} else if (xAligned && yAligned && !yIncorrectDirection) {
-						return cloud
+						return coords
 					} else {
 						return []
 					}
@@ -334,7 +386,7 @@
 				return state
 			},
 		'addGravity':
-			function (state) {
+			state => {
 
 				var hero = state.hero
 
@@ -351,7 +403,7 @@
 				return state
 			},
 		'killWhenOffscreen':
-			function (state) {
+			state => {
 				/*
 					check if the player is offscreen,
 					and if he or she is append an event.
@@ -360,7 +412,7 @@
 				var hero = state.hero
 
 				if (hero.y1 > constants.bounds.y1 || hero.x0 < constants.bounds.x0 ||
-					hero.y0 < constants.bounds.y0 || hero.x1 > constants.bounds.x1) {
+					hero.x1 > constants.bounds.x1) {
 					state.hero.isDead = true
 				}
 				state.hero = hero
@@ -368,17 +420,20 @@
 				return state
 			},
 		'beginJumpPowerup':
-			function (time) {
-				return function (state) {
+			time => {
+				return state => {
 					/*
 						register that we are getting ready to jump.
 					*/
 
-					if (state.hero.positionType === 'standing' || state.hero.positionType === "falling") {
-						state.hero.jumpStart = {
+					var hero = state.hero
+
+					if (hero.positionType === 'standing' || hero.positionType === "falling") {
+						hero.jumpStart = {
 							'time': time
 						}
 					}
+					state.hero = hero
 
 					return state
 				}
@@ -388,7 +443,7 @@
 				/*
 					jump.
 				*/
-				return function (state) {
+				return state => {
 
 					if (state.hero.positionType !== "standing") {
 						return state
@@ -397,38 +452,34 @@
 					var magnitude = constants.asMagnitude(time - state.hero.jumpStart.time)
 					var hero = state.hero
 
-					// squelch accidental taps.
-					if (magnitude > constants.asMagnitude(40)) {
-
-						var mouse = {
-							'x': x - canvas.offsetLeft,
-							'y': y - canvas.offsetTop
-						}
-
-						var dist = {
-							'x': mouse.x - hero.x1,
-							'y': mouse.y - hero.y1
-						}
-
-						var angle = Math.atan(dist.y / dist.x)
-
-						var velocities = {
-							'x':
-								constants.asVelocity( magnitude * Math.cos(angle) ),
-							'y':
-								constants.asVelocity( magnitude * Math.sin(angle) )
-						}
-
-						hero.vx = velocities.x
-						hero.vy = velocities.y
-
-						hero.y0 -= 1
-						hero.y1 -= 1
-
-						hero.positionType = 'falling'
+					var mouse = {
+						'x': x - canvas.offsetLeft,
+						'y': y - canvas.offsetTop
 					}
 
+					var dist = {
+						'x': mouse.x - hero.x1,
+						'y': mouse.y - hero.y1
+					}
+
+					var angle = Math.atan(dist.y / dist.x)
+
+					var velocities = {
+						'x':
+							constants.asVelocity( magnitude * Math.cos(angle) ),
+						'y':
+							constants.asVelocity( magnitude * Math.sin(angle) )
+					}
+
+					hero.vx = velocities.x
+					hero.vy = velocities.y
+
+					hero.y0 -= 1
+					hero.y1 -= 1
+
+					hero.positionType = 'falling'
 					hero.jumpStart = {}
+
 					state.hero = hero
 
 					return state
@@ -438,71 +489,71 @@
 
 	}
 
-	var _update = function (state) {
+	var _update = state => {
 		/*
-			given the state at t, calculate the state at t + dt
-			*/
+		given the state at t, calculate the state at t + dt
+		*/
 
-			var events = [
-				react.scrollCloudsLeft,
-				react.removeOldClouds,
-				react.addClouds,
-				react.killWhenOffscreen
-			]
+		var events = [
+			react.scrollCloudsLeft,
+			react.removeOldClouds,
+			react.addClouds,
+			react.killWhenOffscreen
+		]
 
-			if (state.hero.positionType === 'flying') {
+		if (state.hero.positionType === 'flying') {
 
-				events = events.concat([react.flyAlong])
+			events = events.concat([react.flyAlong])
+
+		} else {
+
+
+			if (state.hero.positionType === 'falling') {
+
+				events = events.concat([react.addGravity])
 
 			} else {
 
+				events = events.concat([react.standStill])
 
-				if (state.hero.positionType === 'falling') {
-
-					events = events.concat([react.addGravity])
-
-				} else {
-
-					events = events.concat([react.standStill])
-
-				}
-				events = events.concat([react.checkOnPlatform])
 			}
+			events = events.concat([react.checkOnPlatform])
+		}
 
-			state.reactions = state.reactions.concat(events)
+		state.reactions = state.reactions.concat(events)
 
-			/*
-				consume every event in the queue, in order.
-			*/
+		/*
+			consume every event in the queue, in order.
+		*/
 
-			for (var ith = 0; ith < state.reactions.length; ith++) {
-				var reaction = state.reactions[ith]
+		for (var ith = 0; ith < state.reactions.length; ith++) {
+			var reaction = state.reactions[ith]
 
-				if (reaction) {
-					state = reaction(state)
-				}
+			if (reaction) {
+				state = reaction(state)
 			}
-			state.reactions = []
-			state.steps += 1
+		}
+		state.reactions = []
+		state.steps += 1
 
-			return state
+		return state
 	}
 
 	var draw = {
 		'cloud':
-			function (state) {
-				/*
-					plot each cloud.
-				*/
+			state => {
 
 				ctx.fillStyle = constants.colours.white
 
-				state.clouds.forEach(function (cloud) {
-					ctx.fillRect(cloud.x0, cloud.y0, constants.cloud.width, constants.cloud.height)
+				state.clouds.forEach(cloud => {
+
+					var coords = cloud(state.steps)
+
+					ctx.fillRect(coords.x0, coords.y0, constants.cloud.width, constants.cloud.height)
 				})
 			},
 		'hero':
-			function (state) {
+			state => {
 
 				var hero = state.hero
 				var birdy = document.getElementById("bird")
@@ -519,7 +570,7 @@
 				//	hero.x0, hero.y0, constants.hero.width, constants.hero.height)
 			},
 		'score':
-			function (state) {
+			state => {
 
  				ctx.font = "30px Monospace";
 				ctx.fillText(
@@ -527,7 +578,7 @@
 					constants.score.x0, constants.score.y0)
 			},
 		'deathScreen':
-			function (state) {
+			state => {
 
 				ctx.fillStyle = 'rgba(0,0,0,0.6)'
 
@@ -555,13 +606,13 @@
 				}
 
 				ctx.fillText(
-					"Try harder." +
+					"You ran out of cluck. " +
 					"Score: " + state.score.value,
 					constants.score.x0, 265)
 			}
 	}
 
-	var _draw = function (state) {
+	var _draw = state => {
 		/*
 			given the current state draw each entity to the screen.
 		*/
@@ -577,7 +628,7 @@
 		ctx.stroke();
 	}
 
-	window.addEventListener('keydown', function (event) {
+	window.addEventListener('keydown', event => {
 		if (event.keyCode === keyCodes.space) {
 
 			state.reactions =
@@ -585,13 +636,13 @@
 
 		}
 	})
-	window.addEventListener('mousedown', function (event) {
+	window.addEventListener('mousedown', event => {
 
 		state.reactions =
 			state.reactions.concat([react.beginJumpPowerup((new Date).getTime() )])
 	})
 
-	window.addEventListener('mouseup', function (event) {
+	window.addEventListener('mouseup', event => {
 
 		state.reactions =
 			state.reactions.concat([react.jump(
