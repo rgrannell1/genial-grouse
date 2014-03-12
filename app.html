@@ -539,94 +539,100 @@
 		return state
 	}
 
-	var draw = {
-		'cloud':
-			state => {
-
-				ctx.fillStyle = constants.colours.white
-
-				state.clouds.forEach(cloud => {
-
-					var coords = cloud(state.steps)
-
-					ctx.fillRect(coords.x0, coords.y0, constants.cloud.width, constants.cloud.height)
-				})
-			},
-		'hero':
-			state => {
-
-				var hero = state.hero
-				var birdy = document.getElementById("bird")
-
-				if (hero.jumpStart.time) {
-					ctx.fillStyle = constants.colours.black
-				} else {
-					ctx.fillStyle = constants.colours.white
-				}
-
-				ctx.drawImage(birdy, hero.x0, hero.y0)
-
-				//ctx.fillRect(
-				//	hero.x0, hero.y0, constants.hero.width, constants.hero.height)
-			},
-		'score':
-			state => {
-
- 				ctx.font = "30px Monospace";
-				ctx.fillText(
-					state.score.value + "",
-					constants.score.x0, constants.score.y0)
-			},
-		'deathScreen':
-			state => {
-
-				ctx.fillStyle = 'rgba(0,0,0,0.6)'
-
-				ctx.fillRect(
-					constants.bounds.x0, constants.bounds.y0,
-					constants.bounds.x1, constants.bounds.y1)
-
-				ctx.fillStyle = constants.colours.blue
-
-				ctx.fillRect(
-					constants.bounds.x0, 200,
-					constants.bounds.x1, 100)
-
- 				ctx.font = "20px Monospace";
-				ctx.fillStyle = constants.colours.white
-
-				value = state.score.value
-
-				if (value < 3) {
-					var message = "Try Harder. Score: " + value
-				} 	else if (value < 10) {
-					var message = ". Score: " + value
-				} else {
-					var message = "Well done. Score: " + value
-				}
-
-				ctx.fillText(
-					"You ran out of cluck. " +
-					"Score: " + state.score.value,
-					constants.score.x0, 265)
-			}
-	}
-
-	var _draw = state => {
+	const draw = ( function () {
 		/*
-			given the current state draw each entity to the screen.
+			returns a function that takes the current state,
+			and draws each entity that needs to be drawn.
 		*/
 
-		canvas.width = canvas.width
+		const drawCloud = state => {
 
-	    // draw each rectangle to the canvas.
-		draw.cloud(state)
+			ctx.fillStyle = constants.colours.white
 
-		draw.hero(state)
-		draw.score(state)
+			state.clouds.forEach(cloud => {
 
-		ctx.stroke();
-	}
+				var coords = cloud(state.steps)
+
+				ctx.fillRect(coords.x0, coords.y0, constants.cloud.width, constants.cloud.height)
+			})
+		}
+
+		const drawHero = state => {
+
+			var hero = state.hero
+			var birdy = document.getElementById("bird")
+
+			if (hero.jumpStart.time) {
+				ctx.fillStyle = constants.colours.black
+			} else {
+				ctx.fillStyle = constants.colours.white
+			}
+
+			ctx.drawImage(birdy, hero.x0, hero.y0)
+		}
+
+		const drawScore = state => {
+			// draw the score to the corner of the screen.
+
+ 			ctx.font = "30px Monospace"
+
+			ctx.fillText(
+				state.score.value + "",
+				constants.score.x0, constants.score.y0)
+
+		}
+
+		const drawDeathScreen =	state => {
+
+			ctx.fillStyle = 'rgba(0,0,0,0.6)'
+
+			ctx.fillRect(
+				constants.bounds.x0, constants.bounds.y0,
+				constants.bounds.x1, constants.bounds.y1)
+
+			ctx.fillStyle = constants.colours.blue
+
+			ctx.fillRect(
+				constants.bounds.x0, 200,
+				constants.bounds.x1, 100)
+
+			ctx.font = "20px Monospace"
+
+			ctx.fillStyle = constants.colours.white
+
+			value = state.score.value
+
+			if (value < 3) {
+				var message = "Try Harder. Score: " + value
+			} 	else if (value < 10) {
+				var message = ". Score: " + value
+			} else {
+				var message = "Well done. Score: " + value
+			}
+
+			ctx.fillText(
+				"You ran out of cluck. " +
+				"Score: " + state.score.value,
+				constants.score.x0, 265)
+		}
+
+		return state => {
+			/*
+				given the current state draw each entity to the screen.
+			*/
+
+			canvas.width = canvas.width
+
+			drawCloud(state)
+
+			drawHero(state)
+			drawScore(state)
+
+			ctx.stroke();
+		}
+
+	} )()
+
 
 	window.addEventListener('keydown', event => {
 		if (event.keyCode === keyCodes.space) {
@@ -657,7 +663,7 @@
 
 		if (!state.hero.isDead) {
 			state = _update(state);
-			_draw(state)
+			draw(state)
 		} else {
 			draw.deathScreen(state)
 			clearInterval(GAMEID)
