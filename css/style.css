@@ -1,0 +1,9 @@
+
+canvas  {
+	margin-left: 400px;
+	background:url(../assets/background.png) center
+}
+
+#bird-asset {
+	display: none
+}
