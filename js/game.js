@@ -65,7 +65,7 @@ var constants = ( function () {
 
 	self.steps = 1
 
-	self.dx = 1.8
+	self.dx = 3
 
 	self.cloud = {
 		"width": 140,
@@ -306,24 +306,24 @@ var react = {
 
 			if (hero.positionType === "flying") {
 				hero.positionType = 'falling'
+
+				const coords = hero.position(state.steps)
+
+				hero.position = always.func( FallingMotion({
+					'x0': coords.x0,
+					'x1': coords.x1,
+					'y0': coords.y0,
+					'y1': coords.y1,
+
+					'vx': 0,
+					'vy': 0,
+
+					'ax': 0,
+					'ay': constants.gravity,
+
+					'init': state.steps
+				}) )
 			}
-
-			const coords = hero.position(state.steps)
-
-			hero.position = always.func( FallingMotion({
-				'x0': coords.x0,
-				'x1': coords.x1,
-				'y0': coords.y0,
-				'y1': coords.y1,
-
-				'vx': 0,
-				'vy': 0,
-
-				'ax': 0,
-				'ay': constants.gravity,
-
-				'init': state.steps
-			}) )
 
 			state.hero = hero
 
@@ -358,6 +358,44 @@ var react = {
 
 			var hero = state.hero
 			var clouds = state.clouds
+
+			/*
+				check for collisions with things currently on screen.
+
+				λt. vy.t + 0.5 * (9.8 / 60) t^2
+
+				derivative is
+
+				λt. vy + (9.8 / 60)t
+
+				when the derivative is 0 the function is at its apex.
+				For what t is the derivative 0?
+
+				t_apex = -(9.6 / 60) / vy
+
+				We need to find the velocity vy that gives the height of the canvas
+				at its apex.
+
+				h_apex = vy^2 / 2(9.8 / 60)
+
+				Solving for vy WolframAlpha says we get
+
+				|vy| = (9.8 / 60)^0.5 * (h)^0.5
+
+				That currently gives us the time to the apex, and the value of vy that will
+				precisely hit the apex. The final value we need is the time it takes to fall from
+				the height h_apex to the ground given the gravity.
+
+				vy_final = (2 (9.8 / 60) h_apex)^0.5
+
+				t_falling = (vy_final - 0) / a
+
+				t_total = t_apex + t_falling
+			*/
+
+
+
+
 
 
 			return state
@@ -440,11 +478,15 @@ var react = {
 }
 
 const currently = {
-	'isCloudy':
+	isCloudy:
 		state => {
 			return state.clouds.length > 0
 		},
-	'offscren':
+	cloudIsReady:
+		state => {
+			return Math.random() > 0.995
+		},
+	offscren:
 		state => {
 
 			const coords = state.hero.position( state.steps )
@@ -455,11 +497,11 @@ const currently = {
 
 			return isOffscreen
 		},
-	'flying':
+	flying:
 		state => {
 			return state.hero.positionType === 'flying'
 		},
-	'falling':
+	falling:
 		state => {
 			return state.hero.positionType === 'falling'
 		}
@@ -477,14 +519,11 @@ var _update = state => {
 		}
 	}
 
-	when(state => {
-		return Math.random() > 0.995
-	}, react.addClouds)
+	when(currently.cloudIsReady, react.addClouds)
 
 	when(currently.isCloudy, react.removeOldClouds)
 
 	when(currently.offscren, react.endGame)
-
 
 	when(currently.falling, react.addGravity)
 
@@ -500,8 +539,9 @@ var _update = state => {
 	for (var ith = 0; ith < state.reactions.length; ith++) {
 		var reaction = state.reactions[ith]
 
-		state = always.func(reaction)(state)
-
+		if (reaction) {
+			state = always.func(reaction)(state)
+		}
 	}
 	state.reactions = []
 	state.steps += 1
