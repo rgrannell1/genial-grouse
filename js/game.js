@@ -114,6 +114,67 @@ var constants = ( function () {
 			}
 		}
 
+	/*
+		Calculate how long the longest vertical jump will remain
+		on screen. This determines how far into the future to check
+		for collisions between a bird trajectory and platform.
+
+		λt. vy.t + 0.5 * (9.8 / 60) t^2
+
+		derivative is
+
+		λt. vy + (9.8 / 60)t
+
+		when the derivative is 0 the function is at its apex.
+		For what t is the derivative 0?
+
+		t_apex = -(9.6 / 60) / vy
+
+		We need to find the velocity vy that gives the height of the canvas
+		at its apex.
+
+		h_apex = vy^2 / 2(9.8 / 60)
+
+		Solving for vy WolframAlpha says we get
+
+		|vy| = (9.8 / 60)^0.5 * (h)^0.5
+
+		That currently gives us the time to the apex, and the value of vy that will
+		precisely hit the apex. The final value we need is the time it takes to fall from
+		the height h_apex to the ground given the gravity.
+
+		vy_final = (2 (9.8 / 60) h_apex)^0.5
+
+		t_falling = (vy_final - 0) / a
+
+		t_total = t_apex + t_falling
+
+		THE FINAL UNIT IS TIME STEPS, NOT SECONDS.
+	*/
+
+	// the launch velocity will just tip the top of the screen.
+	const maximalVelocity =
+		Math.pow(self.gravity, 0.5) * Math.pow(self.bounds.y1, 0.5)
+
+	// the time to the top of the screen from the bottom.
+	const timeToApex = self.gravity / maximalVelocity
+
+	// the velocity reached after falling from the top to the bottom of the screen.
+	const maximalFall = Math.pow((2 * self.gravity * self.bounds.y1), 0.5)
+
+	// the time to the apex and back down.
+	const totalTime = timeToApex + (maximalFall / self.gravity)
+
+	self.maxJumpSteps = Math.ceil(totalTime)
+
+
+
+
+
+
+
+
+
 	return self
 } )()
 
@@ -358,45 +419,6 @@ var react = {
 
 			var hero = state.hero
 			var clouds = state.clouds
-
-			/*
-				check for collisions with things currently on screen.
-
-				λt. vy.t + 0.5 * (9.8 / 60) t^2
-
-				derivative is
-
-				λt. vy + (9.8 / 60)t
-
-				when the derivative is 0 the function is at its apex.
-				For what t is the derivative 0?
-
-				t_apex = -(9.6 / 60) / vy
-
-				We need to find the velocity vy that gives the height of the canvas
-				at its apex.
-
-				h_apex = vy^2 / 2(9.8 / 60)
-
-				Solving for vy WolframAlpha says we get
-
-				|vy| = (9.8 / 60)^0.5 * (h)^0.5
-
-				That currently gives us the time to the apex, and the value of vy that will
-				precisely hit the apex. The final value we need is the time it takes to fall from
-				the height h_apex to the ground given the gravity.
-
-				vy_final = (2 (9.8 / 60) h_apex)^0.5
-
-				t_falling = (vy_final - 0) / a
-
-				t_total = t_apex + t_falling
-			*/
-
-
-
-
-
 
 			return state
 		},
