@@ -270,11 +270,11 @@ const Cloud = self => {
 
 // the initial state
 var state = {
-	'cloudIsReady':
+	cloudIsReady:
 		function () {return true},
 
-	'clouds': [],
-	'hero':
+	clouds: [],
+	hero:
 		{
 			position: FlyingMotion({
 				initialX0: 200,
@@ -302,19 +302,20 @@ var state = {
 		},
 
 	// reactions are temporally ordered.
-	'reactions': [],
-	'score':
+	reactions: [],
+	collisions: [],
+	score:
 		{
 			value: 0,
 			x0: constants.score.x0,
 			y0: constants.score.y0
 		},
-	'nextCloud': 0,
-	'steps': 0
+	nextCloud: 0,
+	steps: 0
 }
 
 var react = {
-	"addClouds":
+	addClouds:
 		state => {
 
 			state.clouds = state.clouds.concat( ( function () {
@@ -340,7 +341,7 @@ var react = {
 
 			return state
 		},
-	"removeOldClouds":
+	removeOldClouds:
 		state => {
 
 			state.clouds = state.clouds.filter(function (cloud) {
@@ -349,7 +350,7 @@ var react = {
 
 			return state
 		},
-	"clipWings":
+	clipWings:
 		state => {
 			/*
 				transition from the flying state to the falling state.
@@ -382,7 +383,7 @@ var react = {
 
 			return state
 		},
-	'enqueueCollisions':
+	enqueueCollisions:
 		state => {
 			/*
 				Every moving object in the game has a trajectory function.
@@ -401,20 +402,24 @@ var react = {
 			*/
 
 			var hero = state.hero
-			const upperStep = state.steps + state.maxJumpSteps
 
-			var clouds = state.clouds
+			if (hero.positionType === 'falling') {
+
+				const upperStep = state.steps + state.maxJumpSteps
+
+				var clouds = state.clouds
+			}
 
 			return state
 		},
-	'endGame':
+	endGame:
 		state => {
 
 			state.hero.isDead = true
 
 			return state
 		},
-	'beginJumpPowerup':
+	beginJumpPowerup:
 		time => {
 			return state => {
 				/*
@@ -433,7 +438,7 @@ var react = {
 				return state
 			}
 		},
-	'jump':
+	jump:
 		function (x, y, time) {
 			/*
 				jump.
@@ -489,6 +494,10 @@ const currently = {
 		state => {
 			return state.clouds.length > 0
 		},
+	noCollisionsQueued:
+		state => {
+			return state.collisions.length > 0
+		},
 	cloudIsReady:
 		state => {
 			return Math.random() > 0.995
@@ -533,6 +542,10 @@ var _update = state => {
 	when(currently.offscren, react.endGame)
 
 	when(currently.falling, react.addGravity)
+
+	when(currently.noCollisionsQueued, react.enqueueCollisions)
+
+
 
 	when(state => {
 		// is the hero standing?
