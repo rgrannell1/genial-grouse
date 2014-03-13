@@ -65,8 +65,7 @@ var constants = ( function () {
 
 	self.steps = 1
 
-	// let the sidescroll be a function of time.
-	self.dx = (1.8) + (0.5 * self.steps)
+	self.dx = 1.8
 
 	self.cloud = {
 		"width": 140,
@@ -330,12 +329,30 @@ var react = {
 
 			return state
 		},
-	'endGame':
+	'enqueueCollisions':
 		state => {
 			/*
-				check if the player is offscreen,
-				and if he or she is append an event.
+				Every moving object in the game has a trajectory function.
+				Because of this collisions can easily be found before they happen;
+				the player trajectory function and each cloud trajectory function can
+				be used to checked to see if they intersect at any point.
+
+				If an interection between the player and cloud is found in the future,
+				then the player either rebounds (1.), lands on the platform (2.), or
+				falls off into oblivion (3.)
+
+				1, Rebounds. The x component of the birds velocity is reversed.
+				2, Lands. The y component of the acceleration and velocities are set
+					to zero, and the x component is set to the scroll speed dx.
+				3, Falls into oblivion. The trajectory is kept.
 			*/
+
+
+
+			return state
+		},
+	'endGame':
+		state => {
 
 			state.hero.isDead = true
 
