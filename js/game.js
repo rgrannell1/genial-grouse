@@ -16,7 +16,9 @@ var always = ( function () {
 				if (whole === whole && whole % 1 === 0) {
 					return whole
 				} else {
-					throw new TypeError("Something ")
+					throw new TypeError(
+						"The contract always.whole was broken with the value " + whole + ".\n" +
+						"Calling function was " + arguments.callee.caller.toString() + ".\n")
 				}
 			},
 		'numeric':
@@ -24,7 +26,19 @@ var always = ( function () {
 				if (numeric === numeric) {
 					return numeric
 				} else {
-					throw new TypeError("Something ")
+					throw new TypeError(
+						"The contract always.numeric was broken with the value " + numeric + ".\n" +
+						"Calling function was " + arguments.callee.caller.toString() + ".\n")
+				}
+			},
+		'boolean':
+			boolean => {
+				if (boolean === false || boolean === true) {
+					return boolean
+				} else {
+					throw new TypeError(
+						"The contract always.boolean was broken with the value " + boolean + ".\n" +
+						"Calling function was " + arguments.callee.caller.toString() + ".\n")
 				}
 			}
 	}
@@ -80,7 +94,7 @@ var constants = ( function () {
 		}
 
 	self.asVelocity =
-		(velocity) => {
+		velocity => {
 			var terminalVelocity = 8
 
 			if (velocity > 0) {
@@ -104,16 +118,16 @@ var utils = {
 			var genesis = (new Date).getTime()
 
 			return function () {
-				(new Date).getTime() > (genesis + milliseconds)
+				always.numeric((new Date).getTime() > (genesis + milliseconds))
 			}
 		},
 	'trueWithOdds':
 		prob => {
-			Math.random() < prob
+			return always.numeric(Math.random() < prob)
 		},
 	'randBetween':
 		(lower, upper) => {
-			(Math.random() * (upper-lower)) + lower
+			always.numeric((Math.random() * (upper-lower)) + lower)
 		},
 	'flatmap':
 		(coll, fn) => {
@@ -124,7 +138,7 @@ var utils = {
 				out = out.concat( fn(coll[ith]) )
 			}
 
-			out
+			return out
 		}
 }
 
@@ -135,13 +149,13 @@ var Cloud = step => {
 	*/
 
 	return {
-		x0: constants.bounds.x1 - (constants.dx * (step - this.init)),
-		x1: constants.bounds.x1 - (constants.dx * (step - this.init)) + constants.cloud.width,
+		x0: always.numeric( constants.bounds.x1 - (constants.dx * (step - this.init)) ),
+		x1: always.numeric( constants.bounds.x1 - (constants.dx * (step - this.init)) + constants.cloud.width ),
 
-		y0: this.y0,
-		y1: this.y1,
+		y0: always.numeric(this.y0),
+		y1: always.numeric(this.y1),
 
-		cloudId: this.cloudId
+		cloudId: always.whole(this.cloudId)
 	}
 }
 
@@ -242,7 +256,7 @@ var react = {
 		state => {
 
 			state.clouds = state.clouds.filter(function (cloud) {
-				return Cloud(state.steps).x0 > constants.bounds.x0
+				return always.boolean(cloud(state.steps).x0 > constants.bounds.x0)
 			})
 
 			return state
@@ -450,8 +464,8 @@ var react = {
 				hero.vx = velocities.x
 				hero.vy = velocities.y
 
-				hero.y0 -= 1
-				hero.y1 -= 1
+				hero.y0 = always.numeric(hero.y0 - 1)
+				hero.y1 = always.numeric(hero.y1 - 1)
 
 				hero.positionType = 'falling'
 				hero.jumpStart = {}
@@ -645,4 +659,4 @@ var loop = function () {
 	}
 }
 
-var GAMEID = setInterval(loop, 1000/60)
+var GAMEID = setInterval(loop, 1000 / 60)
