@@ -191,11 +191,11 @@ const FallingMotion = self => {
 		const time = step - self.init
 
 		return {
-			x0: always.numeric(self.x0 + self.vx * time + 0.5 * self.ax * time * time),
-			x1: always.numeric(self.x1 + self.vx * time + 0.5 * self.ax * time * time),
+			x0: always.numeric(self.x0 + self.vx * time + 0.5 * self.ax * (time * time)),
+			x1: always.numeric(self.x1 + self.vx * time + 0.5 * self.ax * (time * time)),
 
-			y0: always.numeric(self.y0 + self.vy * time + 0.5 * self.ay * time * time),
-			y1: always.numeric(self.y1 + self.vy * time + 0.5 * self.ay * time * time)
+			y0: always.numeric(self.y0 + self.vy * time + 0.5 * self.ay * (time * time)),
+			y1: always.numeric(self.y1 + self.vy * time + 0.5 * self.ay * (time * time))
 		}
 	}
 }
@@ -325,121 +325,6 @@ var react = {
 
 				'init': state.steps
 			}) )
-
-			state.hero = hero
-
-			return state
-		},
-	'flyAlong':
-		state => {
-			// bob along like a bird
-
-			var hero = state.hero
-
-			hero.x0 =
-				always.numeric(Math.max(hero.x0, 0))
-			hero.x1 =
-				always.numeric(Math.max(hero.x1, 0))
-
-			var yOffset =
-				0.5 * Math.sin(3* hero.angle)
-
-			hero.y0 += yOffset
-			hero.y1 += yOffset
-
-			hero.angle =
-				hero.angle + 0.05
-
-			state.hero = hero
-
-			return state
-		},
-	'standStill':
-		state => {
-
-			var hero = state.hero
-
-			if (hero.positionType === "standing") {
-				hero.x0 = hero.x0 - constants.dx
-				hero.x1 = hero.x1 - constants.dx
-			}
-
-			state.hero = hero
-
-			return state
-		},
-	'checkOnPlatform':
-		state => {
-
-			var hit = false
-			var hero = state.hero
-
-			var match = utils.flatmap(state.clouds, cloud => {
-
-				var coords = cloud(state.steps)
-
-				var xAligned = state.hero.x1 > coords.x0 && state.hero.x0 < coords.x1
-				var yAligned = state.hero.y1 > coords.y0 && state.hero.y0 < coords.y1
-
-				var xTooCloseToEdge = hero.x1 < coords.x0 + 5
-				var yIncorrectDirection = hero.vy < 0
-
-				if (yAligned && xAligned && xTooCloseToEdge) {
-					hit = true
-				} else if (xAligned && yAligned && !yIncorrectDirection) {
-					return coords
-				} else {
-					return []
-				}
-			})
-
-			if (match.length == 0) {
-				hero.positionType = 'falling'
-			} else if (hit) {
-				// reverse the state direction.
-
-				if (hero.vx > 0) {
-					hero.vx = -hero.vx
-				}
-
-				hero.x0 -= 3
-				hero.x1 -= 3
-
-				hero.positionType = "dying"
-
-				hit = false
-
-			} else {
-				hero.positionType = 'standing'
-
-				if (hero.last !== match[0].cloudId) {
-
-					state.score.value = state.score.value + 1
-					hero.last = match[0].cloudId
-				}
-
-				// vertically translate the player, to make
-				// stand on platform.
-				hero.y0 = match[0].y0 + 1 - constants.hero.height
-				hero.y1 = match[0].y0 + 1
-			}
-
-			state.hero = hero
-
-			return state
-		},
-	'addGravity':
-		state => {
-
-			var hero = state.hero
-
-			hero.x0 = Math.max(hero.x0 + hero.vx, 0)
-			hero.x1 = Math.max(hero.x1 + hero.vx, 0)
-
-			hero.y0 = hero.y0 + hero.vy
-			hero.y1 = hero.y1 + hero.vy
-
-			hero.vy = constants.asVelocity(hero.vy + (constants.gravity * constants.frameTime))
 
 			state.hero = hero
 
