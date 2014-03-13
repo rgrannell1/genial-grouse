@@ -40,6 +40,17 @@ var always = ( function () {
 						"The contract always.boolean was broken with the value " + boolean + ".\n" +
 						"Calling function was " + arguments.callee.caller.toString() + ".\n")
 				}
+			},
+		'func':
+			func => {
+				if (func && typeof func === 'function') {
+					return func
+				} else {
+					throw new TypeError(
+						"The contract always.func was broken with the value " + boolean + ".\n" +
+						"Calling function was " + arguments.callee.caller.toString() + ".\n")
+
+				}
 			}
 	}
 
@@ -470,6 +481,30 @@ var react = {
 
 }
 
+const currently = {
+	'isCloudy':
+		state => {
+			return state.clouds.length > 0
+		},
+	'offscren':
+		state => {
+			const hero = state.hero
+			const isOffscreen = hero.y1 > constants.bounds.y1 ||
+				hero.x0 < constants.bounds.x0 ||
+				hero.x1 > constants.bounds.x1
+
+			return isOffscreen
+		},
+	'flying':
+		state => {
+			return state.hero.positionType === 'flying'
+		},
+	'falling':
+		state => {
+			return state.hero.positionType === 'falling'
+		}
+}
+
 var _update = state => {
 	/*
 	given the state at t, calculate the state at t + dt
@@ -482,37 +517,17 @@ var _update = state => {
 		}
 	}
 
-	when(state => { return Math.random() > 0.995 }, react.addClouds)
-	when(state => { return state.clouds.length > 0 }, react.removeOldClouds)
-
-
-
-
-
-
-
-
 	when(state => {
-		// is the hero offscreen?
+		return Math.random() > 0.995
+	}, react.addClouds)
 
-		const hero = state.hero
-		const isOffscreen = hero.y1 > constants.bounds.y1 ||
-			hero.x0 < constants.bounds.x0 ||
-			hero.x1 > constants.bounds.x1
+	when(currently.isCloudy, react.removeOldClouds)
 
-		return isOffscreen
-	},
-	react.endGame)
+	when(currently.offscren, react.endGame)
 
-	when(state => {
-		// is the hero flying
-		return state.hero.positionType === 'flying'
-	}, react.flyAlong)
+	when(currently.flying, react.flyAlong)
 
-	when(state => {
-		// is the hero in freefall?
-		return state.hero.positionType === 'falling'
-	}, react.addGravity)
+	when(currently.falling, react.addGravity)
 
 	when(state => {
 		// is the hero standing?
@@ -526,9 +541,8 @@ var _update = state => {
 	for (var ith = 0; ith < state.reactions.length; ith++) {
 		var reaction = state.reactions[ith]
 
-		if (reaction) {
-			state = reaction(state)
-		}
+		state = always.func(reaction)(state)
+
 	}
 	state.reactions = []
 	state.steps += 1
