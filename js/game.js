@@ -119,31 +119,31 @@ var constants = ( function () {
 		on screen. This determines how far into the future to check
 		for collisions between a bird trajectory and platform.
 
-		λt. vy.t + 0.5 * (9.8 / 60) t^2
+		λt. vy.t + 0.5 * g * t^2
 
 		derivative is
 
-		λt. vy + (9.8 / 60)t
+		λt. vy + g * t
 
 		when the derivative is 0 the function is at its apex.
 		For what t is the derivative 0?
 
-		t_apex = -(9.6 / 60) / vy
+		t_apex = -g / vy
 
 		We need to find the velocity vy that gives the height of the canvas
 		at its apex.
 
-		h_apex = vy^2 / 2(9.8 / 60)
+		h_apex = vy^2 / 2g
 
 		Solving for vy WolframAlpha says we get
 
-		|vy| = (9.8 / 60)^0.5 * (h)^0.5
+		|vy| = g^0.5 * (h)^0.5
 
 		That currently gives us the time to the apex, and the value of vy that will
 		precisely hit the apex. The final value we need is the time it takes to fall from
 		the height h_apex to the ground given the gravity.
 
-		vy_final = (2 (9.8 / 60) h_apex)^0.5
+		vy_final = (2 g h_apex)^0.5
 
 		t_falling = (vy_final - 0) / a
 
@@ -153,11 +153,11 @@ var constants = ( function () {
 	*/
 
 	// the launch velocity will just tip the top of the screen.
-	const maximalVelocity =
+	const maxVelocity =
 		Math.pow(self.gravity, 0.5) * Math.pow(self.bounds.y1, 0.5)
 
 	// the time to the top of the screen from the bottom.
-	const timeToApex = self.gravity / maximalVelocity
+	const timeToApex = self.gravity / maxVelocity
 
 	// the velocity reached after falling from the top to the bottom of the screen.
 	const maximalFall = Math.pow((2 * self.gravity * self.bounds.y1), 0.5)
@@ -166,14 +166,6 @@ var constants = ( function () {
 	const totalTime = timeToApex + (maximalFall / self.gravity)
 
 	self.maxJumpSteps = Math.ceil(totalTime)
-
-
-
-
-
-
-
-
 
 	return self
 } )()
@@ -408,16 +400,9 @@ var react = {
 				3, Falls into oblivion. The trajectory is kept.
 			*/
 
-			const areColliding = (box1, box2) => {
-				// are the two boxes currently intersecting?
-
-				const xAligned = (box1.x1 > box2.x0 || box2.x1 > box1.x1)
-				const yAligned = (box1.y1 > box2.y0 || box2.y1 > box1.y1)
-
-				return xAligned && yAligned
-			}
-
 			var hero = state.hero
+			const upperStep = state.steps + state.maxJumpSteps
+
 			var clouds = state.clouds
 
 			return state
