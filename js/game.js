@@ -127,7 +127,7 @@ var utils = {
 		},
 	'randBetween':
 		(lower, upper) => {
-			always.numeric((Math.random() * (upper-lower)) + lower)
+			return always.numeric((Math.random() * (upper-lower)) + lower)
 		},
 	'flatmap':
 		(coll, fn) => {
@@ -142,20 +142,22 @@ var utils = {
 		}
 }
 
-var Cloud = step => {
-	/*
-		a skeleton cloud trajectory function, with
-		several variable not yet closed over. Must be called with bind.
-	*/
+var Cloud = self => {
+	return step => {
+		/*
+			a skeleton cloud trajectory function, with
+			several variable not yet closed over. Must be called with bind.
+		*/
 
-	return {
-		x0: always.numeric( constants.bounds.x1 - (constants.dx * (step - this.init)) ),
-		x1: always.numeric( constants.bounds.x1 - (constants.dx * (step - this.init)) + constants.cloud.width ),
+		return {
+			x0: always.numeric( constants.bounds.x1 - (constants.dx * (step - self.init)) ),
+			x1: always.numeric( constants.bounds.x1 - (constants.dx * (step - self.init)) + constants.cloud.width ),
 
-		y0: always.numeric(this.y0),
-		y1: always.numeric(this.y1),
+			y0: always.numeric(self.y0),
+			y1: always.numeric(self.y1),
 
-		cloudId: always.whole(this.cloudId)
+			cloudId: always.whole(self.cloudId)
+		}
 	}
 }
 
@@ -226,24 +228,19 @@ var react = {
 
 			state.clouds = state.clouds.concat( ( function () {
 
-				var init = state.steps
+				const init = state.steps
 
-				var y0 = utils.randBetween(
+				const y0 = utils.randBetween(
 					1 / 10 * constants.bounds.y1,
 					2 / 3 * constants.bounds.y1)
 
-				var y1 = y0 + constants.cloud.height
+				const y1 = y0 + constants.cloud.height
 
-				var enclosed = {
-					init: state.steps,
-					y0: y0, y1: y1
-				}
-
-				return Cloud.bind({
-					init: state.steps,
-					y0: y0,
-					y1: y1,
-					cloudId: state.nextCloud
+				return Cloud({
+					init: always.whole(state.steps),
+					y0: always.numeric(y0),
+					y1: always.numeric(y1),
+					cloudId: always.whole(state.nextCloud)
 				})
 
 			} )() )
@@ -392,20 +389,14 @@ var react = {
 
 			return state
 		},
-	'killWhenOffscreen':
+	'endGame':
 		state => {
 			/*
 				check if the player is offscreen,
 				and if he or she is append an event.
 			*/
 
-			var hero = state.hero
-
-			if (hero.y1 > constants.bounds.y1 || hero.x0 < constants.bounds.x0 ||
-				hero.x1 > constants.bounds.x1) {
-				state.hero.isDead = true
-			}
-			state.hero = hero
+			state.hero.isDead = true
 
 			return state
 		},
@@ -484,33 +475,49 @@ var _update = state => {
 	given the state at t, calculate the state at t + dt
 	*/
 
-	var events = [
-		react.scrollCloudsLeft,
-		react.removeOldClouds,
-		react.addClouds,
-		react.killWhenOffscreen
-	]
-
-	if (state.hero.positionType === 'flying') {
-
-		events = events.concat([react.flyAlong])
-
-	} else {
-
-
-		if (state.hero.positionType === 'falling') {
-
-			events = events.concat([react.addGravity])
-
-		} else {
-
-			events = events.concat([react.standStill])
-
+	const when = (condition, reaction) => {
+		// side effectfully update state
+		if (condition(state)) {
+			state.reactions = state.reactions.concat([reaction])
 		}
-		events = events.concat([react.checkOnPlatform])
 	}
 
-	state.reactions = state.reactions.concat(events)
+	when(state => { return Math.random() > 0.995 }, react.addClouds)
+	when(state => { return state.clouds.length > 0 }, react.removeOldClouds)
+
+
+
+
+
+
+
+
+	when(state => {
+		// is the hero offscreen?
+
+		const hero = state.hero
+		const isOffscreen = hero.y1 > constants.bounds.y1 ||
+			hero.x0 < constants.bounds.x0 ||
+			hero.x1 > constants.bounds.x1
+
+		return isOffscreen
+	},
+	react.endGame)
+
+	when(state => {
+		// is the hero flying
+		return state.hero.positionType === 'flying'
+	}, react.flyAlong)
+
+	when(state => {
+		// is the hero in freefall?
+		return state.hero.positionType === 'falling'
+	}, react.addGravity)
+
+	when(state => {
+		// is the hero standing?
+		return state.hero.positionType !== 'falling'
+	}, react.standStill)
 
 	/*
 		consume every event in the queue, in order.
