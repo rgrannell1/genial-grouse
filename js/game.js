@@ -347,6 +347,17 @@ var react = {
 				3, Falls into oblivion. The trajectory is kept.
 			*/
 
+			const areColliding = (box1, box2) => {
+				// are the two boxes currently intersecting?
+
+				const xAligned = (box1.x1 > box2.x0 || box2.x1 > box1.x1)
+				const yAligned = (box1.y1 > box2.y0 || box2.y1 > box1.y1)
+
+				return xAligned && yAligned
+			}
+
+			var hero = state.hero
+			var clouds = state.clouds
 
 
 			return state
