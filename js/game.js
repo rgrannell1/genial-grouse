@@ -47,7 +47,7 @@ var always = ( function () {
 					return func
 				} else {
 					throw new TypeError(
-						"The contract always.func was broken with the value " + boolean + ".\n" +
+						"The contract always.func was broken with the value " + func + ".\n" +
 						"Calling function was " + arguments.callee.caller.toString() + ".\n")
 
 				}
@@ -80,7 +80,7 @@ var constants = ( function () {
 		'y1': can.height + 50,
 	}
 
-	self.gravity = 9.8,
+	self.gravity = 9.8 / 60,
 
 	self.colours = {
 		"blue": "#3498db",
@@ -153,12 +153,55 @@ var utils = {
 		}
 }
 
-var Cloud = self => {
+const FlyingMotion = self => {
+	return step => {
+
+		return {
+			x0: always.numeric(self.initialX0),
+			x1: always.numeric(self.initialX1),
+
+			y0: always.numeric(self.initialY0 + 7 * Math.sin(step / 10)),
+			y1: always.numeric(self.initialY1 + 7 * Math.sin(step / 10))
+		}
+
+	}
+}
+
+const StandingMotion = self => {
+	return step => {
+
+		return {
+			x0: always.numeric( self.x0 - (constants.dx * (step - self.init)) ) ,
+			x1: always.numeric( self.x1 - (constants.dx * (step - self.init)) ) ,
+
+			y0: always.numeric(self.y0) ,
+			y1: always.numeric(self.y1)
+		}
+	}
+}
+
+const FallingMotion = self => {
 	return step => {
 		/*
-			a skeleton cloud trajectory function, with
-			several variable not yet closed over. Must be called with bind.
+			given an initial v→ generate a function giving
+			the players position at a given step. This closed form
+			makes it easier to raycast collisions.
 		*/
+
+		const time = step - self.init
+
+		return {
+			x0: always.numeric(self.x0 + self.vx * time + 0.5 * self.ax * time * time),
+			x1: always.numeric(self.x1 + self.vx * time + 0.5 * self.ax * time * time),
+
+			y0: always.numeric(self.y0 + self.vy * time + 0.5 * self.ay * time * time),
+			y1: always.numeric(self.y1 + self.vy * time + 0.5 * self.ay * time * time)
+		}
+	}
+}
+
+const Cloud = self => {
+	return step => {
 
 		return {
 			x0: always.numeric( constants.bounds.x1 - (constants.dx * (step - self.init)) ),
@@ -172,21 +215,6 @@ var Cloud = self => {
 	}
 }
 
-var jumpingHero = t => {
-	/*
-		given an initial v→ generate a function giving
-		the players position at a given step. This closed form
-		makes it easier to raycast collisions.
-	*/
-
-	return {
-		x0: always.numeric(this.initialx0 + this.initialVx * t),
-		x1: always.numeric(this.initialx1 + this.initialVx * t),
-
-		y0: always.numeric(this.initialy0 + this.initialVy * t + 0.5 * this.Ay * t^2),
-		y1: always.numeric(this.initialy1 + this.initialVy * t + 0.5 * this.Ay * t^2)
-	}
-}
 
 // the initial state
 var state = {
@@ -196,17 +224,17 @@ var state = {
 	'clouds': [],
 	'hero':
 		{
-			x0: 200,
-			x1: 200 + constants.hero.width,
-			y0: 200,
-			y1: 200 + constants.hero.height,
+			position: FlyingMotion({
+				initialX0: 200,
+				initialX1: 200 + constants.hero.width,
+
+				initialY0: 200,
+				initialY1: 200 + constants.hero.height
+			}),
+
 			angle: 0,
 
 			// will be reduntant; motion will be a function soon.
-			vx: 0,
-			vy: 0,
-			ax: 0,
-			ay: 0,
 
 			isDead:
 				false,
@@ -280,6 +308,23 @@ var react = {
 			if (hero.positionType === "flying") {
 				hero.positionType = 'falling'
 			}
+
+			const coords = hero.position(state.steps)
+
+			hero.position = always.func( FallingMotion({
+				'x0': coords.x0,
+				'x1': coords.x1,
+				'y0': coords.y0,
+				'y1': coords.y1,
+
+				'vx': 0,
+				'vy': 0,
+
+				'ax': 0,
+				'ay': constants.gravity,
+
+				'init': state.steps
+			}) )
 
 			state.hero = hero
 
@@ -488,10 +533,12 @@ const currently = {
 		},
 	'offscren':
 		state => {
-			const hero = state.hero
-			const isOffscreen = hero.y1 > constants.bounds.y1 ||
-				hero.x0 < constants.bounds.x0 ||
-				hero.x1 > constants.bounds.x1
+
+			const coords = state.hero.position( state.steps )
+
+			const isOffscreen = coords.y1 > constants.bounds.y1 ||
+				coords.x0 < constants.bounds.x0 ||
+				coords.x1 > constants.bounds.x1
 
 			return isOffscreen
 		},
@@ -525,7 +572,6 @@ var _update = state => {
 
 	when(currently.offscren, react.endGame)
 
-	when(currently.flying, react.flyAlong)
 
 	when(currently.falling, react.addGravity)
 
@@ -579,7 +625,9 @@ const draw = ( function () {
 			ctx.fillStyle = constants.colours.white
 		}
 
-		ctx.drawImage(birdy, hero.x0, hero.y0)
+		const coords = hero.position(state.steps)
+
+		ctx.drawImage(birdy, coords.x0, coords.y0)
 	}
 
 	const drawScore = state => {
