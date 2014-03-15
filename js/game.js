@@ -1,4 +1,8 @@
 
+;( function() {
+	"use strict"
+} )()
+
 var can = document.getElementById("canvas")
 var ctx = can.getContext("2d")
 
@@ -361,6 +365,10 @@ var react = {
 		},
 	removeOldClouds:
 		state => {
+			/*
+				Remove the cloud functions that - at the current
+				timestep - are offscreen.
+			*/
 
 			state.clouds = state.clouds.filter(function (cloud) {
 				return always.boolean(cloud(state.step).x0 > constants.bounds.x0)
@@ -371,7 +379,8 @@ var react = {
 	clipWings:
 		state => {
 			/*
-				transition from the flying state to the falling state.
+				Swap the initial flying sin-wave motion function for a
+				falling motion function.
 			*/
 
 			var hero = state.hero
@@ -389,18 +398,18 @@ var react = {
 				} )()
 
 				hero.position = always.func( FallingMotion({
-					'x0': coords.x0,
-					'x1': coords.x1,
-					'y0': coords.y0,
-					'y1': coords.y1,
+					x0: coords.x0,
+					x1: coords.x1,
+					y0: coords.y0,
+					y1: coords.y1,
 
-					'vx': constants.birdDx,
-					'vy': ySlope,
+					vx: constants.birdDx,
+					vy: ySlope,
 
-					'ax': 0,
-					'ay': constants.gravity,
+					ax: 0,
+					ay: constants.gravity,
 
-					'init': state.step
+					init: state.step
 				}) )
 			}
 
@@ -460,9 +469,10 @@ var react = {
 	alterCourse:
 		state => {
 			/*
-				The collision point has been reached, so we
-				need to swap out the current player's motion
-				function for the pre-computed motion function.
+				The pre-calculated collision point has
+				been reached, so we need to swap out
+				the current player's motion function for
+				the pre-computed motion function.
 			*/
 
 			const hero = state.player
@@ -477,6 +487,9 @@ var react = {
 		},
 	endGame:
 		state => {
+			/*
+				The game is over.
+			*/
 
 			state.hero.isDead = true
 
@@ -559,7 +572,7 @@ const currently = {
 		},
 	noCollisionsQueued:
 		state => {
-			return true; //state.collisions.length == 0
+			return state.collisions.length == 0
 		},
 	cloudIsReady:
 		state => {
@@ -593,16 +606,26 @@ const currently = {
 		state => {
 			return state.collisions.length > 0 &&
 			state.collisions[0].step === state.step
+		},
+
+	isDead:
+		state => {
+			return state.hero.isDead
+		},
+	isAlive:
+		state => {
+			return !state.hero.isDead
 		}
 }
 
 var _update = state => {
 	/*
-	given the state at t, calculate the state at t + dt
+		given the state at t, calculate the state at t + dt
 	*/
 
 	const when = (condition, reaction) => {
-		// side effectfully update state
+		// side-effectfully update state
+
 		if (condition(state)) {
 			state.reactions = state.reactions.concat([reaction])
 		}
@@ -636,123 +659,120 @@ var _update = state => {
 	return state
 }
 
-const draw = ( function () {
+
+const render = {
+	cloud:
+		state => {
+
+			ctx.fillStyle = constants.colours.white
+
+			state.clouds.forEach(cloud => {
+
+				var coords = cloud(state.step)
+
+				ctx.fillRect(coords.x0, coords.y0, constants.cloud.width, constants.cloud.height)
+			})
+		},
+	hero:
+		state => {
+
+			var hero = state.hero
+			var birdy = document.getElementById("bird-asset")
+
+			if (hero.jumpStart.time) {
+				ctx.fillStyle = constants.colours.black
+			} else {
+				ctx.fillStyle = constants.colours.white
+			}
+
+			const coords = hero.position(state.step)
+
+			ctx.drawImage(birdy, coords.x0, coords.y0)
+		},
+	score:
+		state => {
+			// draw the score to the corner of the screen.
+
+			ctx.font = "30px Monospace"
+
+			ctx.fillText(
+				state.score.value + "",
+				constants.score.x0, constants.score.y0)
+
+		},
+	deathScreen:
+		state => {
+
+			if (state.hero.isDead) {
+
+			ctx.fillStyle = 'rgba(0,0,0,0.6)'
+
+			ctx.fillRect(
+				constants.bounds.x0, constants.bounds.y0,
+				constants.bounds.x1, constants.bounds.y1)
+
+			ctx.fillStyle = constants.colours.blue
+
+			ctx.fillRect(
+				constants.bounds.x0, 200,
+				constants.bounds.x1, 100)
+
+			ctx.font = "20px Monospace"
+
+			ctx.fillStyle = constants.colours.white
+
+			value = state.score.value
+
+			if (value < 3) {
+				var message = "Try Harder. Score: " + value
+			} 	else if (value < 10) {
+				var message = ". Score: " + value
+			} else {
+				var message = "Well done. Score: " + value
+			}
+
+			ctx.fillText(
+				"You ran out of cluck. " +
+				"Score: " + state.score.value,
+				constants.score.x0, 265)
+			}
+		}
+}
+
+const draw = state => {
 	/*
-		returns a function that takes the current state,
-		and draws each entity that needs to be drawn.
+		given the current state draw each entity to the screen.
 	*/
 
-	const drawCloud = state => {
+	const when = (condition, reaction) => {
+		// side-effectfully update state.
 
-		ctx.fillStyle = constants.colours.white
-
-		state.clouds.forEach(cloud => {
-
-			var coords = cloud(state.step)
-
-			ctx.fillRect(coords.x0, coords.y0, constants.cloud.width, constants.cloud.height)
-		})
-	}
-
-	const drawHero = state => {
-
-		var hero = state.hero
-		var birdy = document.getElementById("bird-asset")
-
-		if (hero.jumpStart.time) {
-			ctx.fillStyle = constants.colours.black
-		} else {
-			ctx.fillStyle = constants.colours.white
-		}
-
-		const coords = hero.position(state.step)
-
-		ctx.drawImage(birdy, coords.x0, coords.y0)
-	}
-
-	const drawScore = state => {
-		// draw the score to the corner of the screen.
-
-		ctx.font = "30px Monospace"
-
-		ctx.fillText(
-			state.score.value + "",
-			constants.score.x0, constants.score.y0)
-
-	}
-
-	const drawDeathScreen =	state => {
-
-		if (state.hero.isDead) {
-
-		ctx.fillStyle = 'rgba(0,0,0,0.6)'
-
-		ctx.fillRect(
-			constants.bounds.x0, constants.bounds.y0,
-			constants.bounds.x1, constants.bounds.y1)
-
-		ctx.fillStyle = constants.colours.blue
-
-		ctx.fillRect(
-			constants.bounds.x0, 200,
-			constants.bounds.x1, 100)
-
-		ctx.font = "20px Monospace"
-
-		ctx.fillStyle = constants.colours.white
-
-		value = state.score.value
-
-		if (value < 3) {
-			var message = "Try Harder. Score: " + value
-		} 	else if (value < 10) {
-			var message = ". Score: " + value
-		} else {
-			var message = "Well done. Score: " + value
-		}
-
-		ctx.fillText(
-			"You ran out of cluck. " +
-			"Score: " + state.score.value,
-			constants.score.x0, 265)
+		if (condition(state)) {
+			reaction(state)
 		}
 	}
+	canvas.width = canvas.width
 
-	return state => {
-		/*
-			given the current state draw each entity to the screen.
-		*/
+	when(currently.isCloudy, render.cloud)
+	when(currently.isDead, render.deadScreen)
+	when(currently.isAlive, render.score)
+	when(currently.isAlive, render.hero)
 
-		canvas.width = canvas.width
-
-		drawCloud(state)
-
-		drawHero(state)
-		drawScore(state)
-		drawDeathScreen(state)
-
-		ctx.stroke();
-	}
-
-} )()
-
-
+}
 
 
 const upon = window.addEventListener
 
-upon('keydown', event => {
-	if (event.keyCode === keyCodes.space) {
 
-		state.reactions =
-			state.reactions.concat([react.clipWings])
-
-	}
-})
 upon('mousedown', event => {
 
-	state.reactions =
-		state.reactions.concat([react.beginJumpPowerup((new Date).getTime() )])
+	if (state.hero.positionType === "flying") {
+		state.reactions =
+			state.reactions.concat([react.clipWings])
+	} else {
+		state.reactions =
+			state.reactions.concat([react.beginJumpPowerup((new Date).getTime() )])
+	}
 })
 
 upon('mouseup', event => {
