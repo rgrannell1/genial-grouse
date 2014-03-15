@@ -183,36 +183,44 @@ var constants = ( function () {
 	return self
 } )()
 
-var utils = {
-	timer:
-		interval => {
+const utils = ( function () {
 
-			var genesis = (new Date).getTime()
+	var self = {}
 
-			return function () {
-				always.boolean((new Date).getTime() > (genesis + interval))
-			}
-		},
-	trueWithOdds:
-		prob => {
-			return always.numeric(Math.random() < prob)
-		},
-	randBetween:
-		(lower, upper) => {
-			return always.numeric((Math.random() * (upper-lower)) + lower)
-		},
-	flatmap:
-		(coll, fn) => {
+	self.getTime = () => {
+		return (new Date).getTime()
+	}
 
-			var out = []
+	self.timer = interval => {
 
-			for (var ith = 0; ith < coll.length; ith++) {
-				out = out.concat( fn(coll[ith]) )
-			}
+		var genesis = self.getTime()
 
-			return out
+		return function () {
+			always.boolean(self.getTime() > (genesis + interval))
 		}
-}
+	}
+
+	self.trueWithOdds =	prob => {
+		return always.numeric(Math.random() < prob)
+	}
+
+	self.randBetween = (lower, upper) => {
+		return always.numeric((Math.random() * (upper-lower)) + lower)
+	}
+
+	self.flatmap = (coll, fn) => {
+
+		var out = []
+
+		for (var ith = 0; ith < coll.length; ith++) {
+			out = out.concat( fn(coll[ith]) )
+		}
+
+		return out
+	}
+
+	return self
+} )()
 
 const FlyingMotion = self => {
 	return step => {
@@ -224,7 +232,6 @@ const FlyingMotion = self => {
 			y0: always.numeric(self.y0 + 7 * Math.sin(step / 10)),
 			y1: always.numeric(self.y1 + 7 * Math.sin(step / 10))
 		}
-
 	}
 }
 
@@ -298,17 +305,11 @@ var state = {
 				vy: 0
 			}),
 
-			angle: 0,
-
-			// will be reduntant; motion will be a function soon.
-
 			isDead:
 				false,
 
 			positionType:
 				'flying',
-
-			last: -1,
 
 			jumpStart: {
 
@@ -525,21 +526,21 @@ var react = {
 				var hero = state.hero
 
 				var mouse = {
-					'x': x - canvas.offsetLeft,
-					'y': y - canvas.offsetTop
+					x: always.numeric(x - canvas.offsetLeft),
+					y: always.numeric(y - canvas.offsetTop)
 				}
 
 				var dist = {
-					'x': mouse.x - hero.x1,
-					'y': mouse.y - hero.y1
+					x: always.numeric(mouse.x - hero.x1),
+					y: always.numeric(mouse.y - hero.y1)
 				}
 
 				var angle = Math.atan(dist.y / dist.x)
 
 				var velocities = {
-					'x':
+					x:
 						constants.asVelocity( magnitude * Math.cos(angle) ),
-					'y':
+					y:
 						constants.asVelocity( magnitude * Math.sin(angle) )
 				}
 
@@ -750,32 +751,60 @@ const draw = state => {
 	canvas.width = canvas.width
 
 	when(currently.isCloudy, render.cloud)
-	when(currently.isDead, render.deadScreen)
+	when(currently.isDead, render.deathScreen)
 	when(currently.isAlive, render.score)
 	when(currently.isAlive, render.hero)
 
 }
 
 
-const upon = window.addEventListener
 
-upon('mousedown', event => {
 
-	if (state.hero.positionType === "flying") {
-		state.reactions =
-			state.reactions.concat([react.clipWings])
-	} else {
-		state.reactions =
-			state.reactions.concat([react.beginJumpPowerup((new Date).getTime() )])
+
+
+( function () {
+	/*
+		Attach event listeners to the document.
+	*/
+
+	const upon = function (event, response) {
+
+		window.addEventListener(event, event => {
+			state.reactions = state.reactions.concat([
+				response(event) ])
+		})
 	}
-})
 
-upon('mouseup', event => {
+	upon('mousedown', event => {
 
-	state.reactions =
-		state.reactions.concat([react.jump(
-			event.pageX, event.pageY, (new Date).getTime() )])
-})
+		if (state.hero.positionType === "flying") {
+			return react.clipWings
+		} else {
+			return react.beginJumpPowerup(utils.getTime)
+		}
+	})
+
+	upon('mouseup', event => {
+
+		return react.jump(
+			event.pageX,
+			event.pageY,
+			utils.getTime)
+	})
+
+} )()
+
+
+
+
+
+
+
+
+
+
+
+
 
 const loop = function () {
 	/*
