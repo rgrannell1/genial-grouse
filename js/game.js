@@ -115,41 +115,41 @@ var constants = ( function () {
 		}
 
 	/*
-		Calculate how long the longest vertical jump will remain
-		on screen. This determines how far into the future to check
-		for collisions between a bird trajectory and platform.
+	Calculate how long the longest vertical jump will remain
+	on screen. This determines how far into the future to check
+	for collisions between a bird trajectory and platform.
 
-		λt. vy.t + 0.5 * g * t^2
+	λt. vy.t + 0.5 * g * t^2
 
 		derivative is
 
-		λt. vy + g * t
+	λt. vy + g * t
 
-		when the derivative is 0 the function is at its apex.
-		For what t is the derivative 0?
+	when the derivative is 0 the function is at its apex.
+	For what t is the derivative 0?
 
-		t_apex = -g / vy
+	t_apex = -g / vy
 
-		We need to find the velocity vy that gives the height of the canvas
-		at its apex.
+	We need to find the velocity vy that gives the height of the canvas
+	at its apex.
 
-		h_apex = vy^2 / 2g
+	h_apex = vy^2 / 2g
 
-		Solving for vy WolframAlpha says we get
+	Solving for vy WolframAlpha says we get
 
-		|vy| = g^0.5 * (h)^0.5
+	|vy| = g^0.5 * (h)^0.5
 
-		That currently gives us the time to the apex, and the value of vy that will
-		precisely hit the apex. The final value we need is the time it takes to fall from
-		the height h_apex to the ground given the gravity.
+	That currently gives us the time to the apex, and the value of vy that will
+	precisely hit the apex. The final value we need is the time it takes to fall from
+	the height h_apex to the ground given the gravity.
 
-		vy_final = (2 g h_apex)^0.5
+	vy_final = (2 g h_apex)^0.5
 
-		t_falling = (vy_final - 0) / a
+	t_falling = (vy_final - 0) / a
 
-		t_total = t_apex + t_falling
+	t_total = t_apex + t_falling
 
-		THE FINAL UNIT IS TIME STEPS, NOT SECONDS.
+	THE FINAL UNIT IS TIME STEPS, NOT SECONDS.
 	*/
 
 	// the launch velocity will just tip the top of the screen.
@@ -386,19 +386,19 @@ var react = {
 	enqueueCollisions:
 		state => {
 			/*
-				Every moving object in the game has a trajectory function.
-				Because of this collisions can easily be found before they happen;
-				the player trajectory function and each cloud trajectory function can
-				be used to checked to see if they intersect at any point.
+			Every moving object in the game has a trajectory function.
+			Because of this collisions can easily be found before they happen;
+			the player trajectory function and each cloud trajectory function can
+			be used to checked to see if they intersect at any point.
 
-				If an interection between the player and cloud is found in the future,
-				then the player either rebounds (1.), lands on the platform (2.), or
-				falls off into oblivion (3.)
+			If an interection between the player and cloud is found in the future,
+			then the player either rebounds (1.), lands on the platform (2.), or
+			falls off into oblivion (3.)
 
-				1, Rebounds. The x component of the birds velocity is reversed.
-				2, Lands. The y component of the acceleration and velocities are set
-					to zero, and the x component is set to the scroll speed dx.
-				3, Falls into oblivion. The trajectory is kept.
+			1, Rebounds. The x component of the birds velocity is reversed.
+			2, Lands. The y component of the acceleration and velocities are set
+				to zero, and the x component is set to the scroll speed dx.
+			3, Falls into oblivion. The trajectory is kept.
 			*/
 
 			var hero = state.hero
@@ -407,7 +407,15 @@ var react = {
 
 				const upperStep = state.steps + state.maxJumpSteps
 
-				var clouds = state.clouds
+				const clouds = state.clouds
+
+				// p(t).x0 - c(t).x1 = 0
+				// root find the distance
+
+
+
+
+
 			}
 
 			return state
@@ -520,6 +528,10 @@ const currently = {
 	falling:
 		state => {
 			return state.hero.positionType === 'falling'
+		},
+	notFalling:
+		state => {
+			return state.hero.positionType !== 'falling'
 		}
 }
 
@@ -545,12 +557,7 @@ var _update = state => {
 
 	when(currently.noCollisionsQueued, react.enqueueCollisions)
 
-
-
-	when(state => {
-		// is the hero standing?
-		return state.hero.positionType !== 'falling'
-	}, react.standStill)
+	when(currently.notFalling, react.standStill)
 
 	/*
 		consume every event in the queue, in order.
@@ -616,6 +623,8 @@ const draw = ( function () {
 
 	const drawDeathScreen =	state => {
 
+		if (state.hero.isDead) {
+
 		ctx.fillStyle = 'rgba(0,0,0,0.6)'
 
 		ctx.fillRect(
@@ -646,6 +655,7 @@ const draw = ( function () {
 			"You ran out of cluck. " +
 			"Score: " + state.score.value,
 			constants.score.x0, 265)
+		}
 	}
 
 	return state => {
@@ -659,6 +669,7 @@ const draw = ( function () {
 
 		drawHero(state)
 		drawScore(state)
+		drawDeathScreen(state)
 
 		ctx.stroke();
 	}
@@ -666,7 +677,11 @@ const draw = ( function () {
 } )()
 
 
-window.addEventListener('keydown', event => {
+
+
+const upon = window.addEventListener
+
+upon('keydown', event => {
 	if (event.keyCode === keyCodes.space) {
 
 		state.reactions =
@@ -674,19 +689,18 @@ window.addEventListener('keydown', event => {
 
 	}
 })
-window.addEventListener('mousedown', event => {
+upon('mousedown', event => {
 
 	state.reactions =
 		state.reactions.concat([react.beginJumpPowerup((new Date).getTime() )])
 })
 
-window.addEventListener('mouseup', event => {
+upon('mouseup', event => {
 
 	state.reactions =
 		state.reactions.concat([react.jump(
 			event.pageX, event.pageY, (new Date).getTime() )])
 })
-
 
 var loop = function () {
 	/*
