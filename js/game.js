@@ -219,6 +219,7 @@ const FlyingMotion = self => {
 	}
 }
 
+
 const StandingMotion = self => {
 	return step => {
 
@@ -393,7 +394,7 @@ var react = {
 
 			If an interection between the player and cloud is found in the future,
 			then the player either rebounds (1.), lands on the platform (2.), or
-			falls off into oblivion (3.)
+
 
 			1, Rebounds. The x component of the birds velocity is reversed.
 			2, Lands. The y component of the acceleration and velocities are set
@@ -403,19 +404,58 @@ var react = {
 
 			var hero = state.hero
 
-			if (hero.positionType === 'falling') {
+			if (hero.positionType !== 'falling') {
+				return state
+			}
 
-				const upperStep = state.steps + state.maxJumpSteps
+			const upperStep = state.steps + state.maxJumpSteps
 
-				const clouds = state.clouds
+			const clouds = state.clouds
 
-				// p(t).x0 - c(t).x1 = 0
-				// root find the distance
+			// is the
+			player(t).x1 == cloud(t).x0 &&
+			player(y).y1 >  cloud(t).y0 && player(y).y0 < cloud(t).y1
 
+			return state
+		},
+	alterCourse:
+		state => {
 
+			const hero = state.player
+			const collision = state.collisions[0]
 
+			hero.position = collision.position
+			state.collisions = []
 
+			state.hero = hero
 
+			const searchSpace = ( function () {
+				/*
+					what timesteps should be checked for collisions?
+				*/
+
+				var out = []
+				const bounds = {
+					lower:
+						always.whole(state.steps),
+					upper:
+						always.whole(state.maxJumpSteps + state.steps)
+				}
+
+				for (var ith = bounds.lower; ith < bounds.upper; ith++) {
+					out = out.concat([ith])
+				}
+
+				return out
+			} )()
+
+			console.log(searchSpace)
+
+			if (false) {
+				state.collisions = [{
+					position: function (x) x,
+					step: NaN
+				}]
 			}
 
 			return state
@@ -532,6 +572,12 @@ const currently = {
 	notFalling:
 		state => {
 			return state.hero.positionType !== 'falling'
+		},
+
+	colliding:
+		state => {
+			return state.collisions.length > 0 &&
+			state.collisions[0].step === state.steps
 		}
 }
 
@@ -553,11 +599,9 @@ var _update = state => {
 
 	when(currently.offscren, react.endGame)
 
-	when(currently.falling, react.addGravity)
-
 	when(currently.noCollisionsQueued, react.enqueueCollisions)
 
-	when(currently.notFalling, react.standStill)
+	when(currently.colliding, react.alterCourse)
 
 	/*
 		consume every event in the queue, in order.
