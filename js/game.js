@@ -75,33 +75,33 @@ var constants = ( function () {
 	self.cloudInterval = .3
 
 	self.cloud = {
-		"width": 140,
-		"height": 140 / Math.pow(1.613, 3),
-		"cloudFrequency": 1/10
+		width: 140,
+		height: 140 / Math.pow(1.613, 3),
+		cloudFrequency: 1/10
 	}
 
 	self.bounds = {
-		'x0': -self.cloud.width,
-		'x1': can.width + self.cloud.width,
-		'y0': -50,
-		'y1': can.height + 50,
+		x0: -self.cloud.width,
+		x1: can.width + self.cloud.width,
+		y0: -50,
+		y1: can.height + 50,
 	}
 
 	self.gravity = 9.8 / 60,
 
 	self.colours = {
-		"blue": "#3498db",
-		"white": "#ecf0f1",
-		"black": "black"
+		blue: "#3498db",
+		white: "#ecf0f1",
+		black: "black"
 	}
 
 	self.hero = {
-		"width": 32,
-		"height": 32
+		width: 32,
+		height: 32
 	}
 	self.score = {
-		"x0": 100,
-		"y0": 50
+		x0: 100,
+		y0: 50
 	}
 	self.frameTime =
 		1 / 60
@@ -183,12 +183,8 @@ var constants = ( function () {
 	return self
 } )()
 
-var keyCodes = {
-	'space': 32
-}
-
 var utils = {
-	'timer':
+	timer:
 		interval => {
 
 			var genesis = (new Date).getTime()
@@ -197,15 +193,15 @@ var utils = {
 				always.boolean((new Date).getTime() > (genesis + interval))
 			}
 		},
-	'trueWithOdds':
+	trueWithOdds:
 		prob => {
 			return always.numeric(Math.random() < prob)
 		},
-	'randBetween':
+	randBetween:
 		(lower, upper) => {
 			return always.numeric((Math.random() * (upper-lower)) + lower)
 		},
-	'flatmap':
+	flatmap:
 		(coll, fn) => {
 
 			var out = []
@@ -763,7 +759,6 @@ const draw = state => {
 
 const upon = window.addEventListener
 
-
 upon('mousedown', event => {
 
 	if (state.hero.positionType === "flying") {
@@ -782,7 +777,7 @@ upon('mouseup', event => {
 			event.pageX, event.pageY, (new Date).getTime() )])
 })
 
-var loop = function () {
+const loop = function () {
 	/*
 		repeatedly update the state.
 	*/
@@ -795,4 +790,4 @@ var loop = function () {
 	}
 }
 
-var GAMEID = setInterval(loop, 1000 / 60)
+const GAMEID = setInterval(loop, 1000 / 60)
