@@ -63,7 +63,7 @@ var constants = ( function () {
 
 	var self = {}
 
-	self.steps = 1
+	self.step = 1
 
 	self.dx = 3
 
@@ -96,7 +96,7 @@ var constants = ( function () {
 		"y0": 50
 	}
 	self.frameTime =
-		1/60
+		1 / 60
 
 	self.asMagnitude =
 		(interval) => {
@@ -165,7 +165,7 @@ var constants = ( function () {
 	// the time to the apex and back down.
 	const totalTime = timeToApex + (maximalFall / self.gravity)
 
-	self.maxJumpSteps = Math.ceil(totalTime)
+	self.maxJumpSteps = always.whole(Math.ceil(totalTime))
 
 	return self
 } )()
@@ -304,7 +304,9 @@ var state = {
 
 	// reactions are temporally ordered.
 	reactions: [],
-	collisions: [],
+	collisions: {
+
+	},
 	score:
 		{
 			value: 0,
@@ -312,7 +314,7 @@ var state = {
 			y0: constants.score.y0
 		},
 	nextCloud: 0,
-	steps: 0
+	step: 0
 }
 
 var react = {
@@ -321,7 +323,7 @@ var react = {
 
 			state.clouds = state.clouds.concat( ( function () {
 
-				const init = state.steps
+				const init = state.step
 
 				const y0 = utils.randBetween(
 					1 / 10 * constants.bounds.y1,
@@ -330,7 +332,7 @@ var react = {
 				const y1 = y0 + constants.cloud.height
 
 				return Cloud({
-					init: always.whole(state.steps),
+					init: always.whole(state.step),
 					y0: always.numeric(y0),
 					y1: always.numeric(y1),
 					cloudId: always.whole(state.nextCloud)
@@ -346,7 +348,7 @@ var react = {
 		state => {
 
 			state.clouds = state.clouds.filter(function (cloud) {
-				return always.boolean(cloud(state.steps).x0 > constants.bounds.x0)
+				return always.boolean(cloud(state.step).x0 > constants.bounds.x0)
 			})
 
 			return state
@@ -362,7 +364,7 @@ var react = {
 			if (hero.positionType === "flying") {
 				hero.positionType = 'falling'
 
-				const coords = hero.position(state.steps)
+				const coords = hero.position(state.step)
 
 				hero.position = always.func( FallingMotion({
 					'x0': coords.x0,
@@ -376,7 +378,7 @@ var react = {
 					'ax': 0,
 					'ay': constants.gravity,
 
-					'init': state.steps
+					'init': state.step
 				}) )
 			}
 
@@ -408,55 +410,46 @@ var react = {
 				return state
 			}
 
-			const upperStep = state.steps + state.maxJumpSteps
+			const upperStep = state.step + constants.maxJumpSteps
 
 			const clouds = state.clouds
 
 			// is the
-			player(t).x1 == cloud(t).x0 &&
-			player(y).y1 >  cloud(t).y0 && player(y).y0 < cloud(t).y1
+			// player(t).x1 == cloud(t).x0 &&
+			// player(y).y1 >  cloud(t).y0 && player(y).y0 < cloud(t).y1
+
+			state.collisions = {
+				position:
+					StandingMotion({
+						x0: 100,
+						x1: 100,
+
+						y0: hero.position(100).y0,
+						y1: hero.position(100).y1,
+
+						init: 1
+					}),
+				step:
+					100
+			}
 
 			return state
 		},
 	alterCourse:
 		state => {
+			/*
+				The collision point has been reached, so we
+				need to swap out the current player's motion
+				function for the pre-computed motion function.
+			*/
 
 			const hero = state.player
 			const collision = state.collisions[0]
 
 			hero.position = collision.position
+
 			state.collisions = []
-
 			state.hero = hero
-
-			const searchSpace = ( function () {
-				/*
-					what timesteps should be checked for collisions?
-				*/
-
-				var out = []
-				const bounds = {
-					lower:
-						always.whole(state.steps),
-					upper:
-						always.whole(state.maxJumpSteps + state.steps)
-				}
-
-				for (var ith = bounds.lower; ith < bounds.upper; ith++) {
-					out = out.concat([ith])
-				}
-
-				return out
-			} )()
-
-			console.log(searchSpace)
-
-			if (false) {
-				state.collisions = [{
-					position: function (x) x,
-					step: NaN
-				}]
-			}
 
 			return state
 		},
@@ -544,7 +537,7 @@ const currently = {
 		},
 	noCollisionsQueued:
 		state => {
-			return state.collisions.length > 0
+			return true; //state.collisions.length == 0
 		},
 	cloudIsReady:
 		state => {
@@ -553,7 +546,7 @@ const currently = {
 	offscren:
 		state => {
 
-			const coords = state.hero.position( state.steps )
+			const coords = state.hero.position( state.step )
 
 			const isOffscreen = coords.y1 > constants.bounds.y1 ||
 				coords.x0 < constants.bounds.x0 ||
@@ -577,7 +570,7 @@ const currently = {
 	colliding:
 		state => {
 			return state.collisions.length > 0 &&
-			state.collisions[0].step === state.steps
+			state.collisions[0].step === state.step
 		}
 }
 
@@ -614,8 +607,9 @@ var _update = state => {
 			state = always.func(reaction)(state)
 		}
 	}
+
 	state.reactions = []
-	state.steps += 1
+	state.step = always.whole(state.step + 1)
 
 	return state
 }
@@ -632,7 +626,7 @@ const draw = ( function () {
 
 		state.clouds.forEach(cloud => {
 
-			var coords = cloud(state.steps)
+			var coords = cloud(state.step)
 
 			ctx.fillRect(coords.x0, coords.y0, constants.cloud.width, constants.cloud.height)
 		})
@@ -649,7 +643,7 @@ const draw = ( function () {
 			ctx.fillStyle = constants.colours.white
 		}
 
-		const coords = hero.position(state.steps)
+		const coords = hero.position(state.step)
 
 		ctx.drawImage(birdy, coords.x0, coords.y0)
 	}
@@ -657,7 +651,7 @@ const draw = ( function () {
 	const drawScore = state => {
 		// draw the score to the corner of the screen.
 
-			ctx.font = "30px Monospace"
+		ctx.font = "30px Monospace"
 
 		ctx.fillText(
 			state.score.value + "",
