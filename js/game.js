@@ -75,6 +75,7 @@ var constants = ( function () {
 		"height": 140 / Math.pow(1.613, 3),
 		"cloudFrequency": 1/10
 	}
+
 	self.bounds = {
 		'x0': -self.cloud.width,
 		'x1': can.width + self.cloud.width,
@@ -116,6 +117,11 @@ var constants = ( function () {
 				return Math.max(velocity, -terminalVelocity)
 			}
 		}
+
+	self.cloudBounds = {
+		y0: 0.150,
+		y1: 0.875
+	}
 
 	/*
 	Calculate how long the longest vertical jump will remain
@@ -275,8 +281,9 @@ const Cloud = self => {
 // the initial state
 var state = {
 	cloudTimer:
-		function () {return true},
-
+		function () {
+			return true
+		},
 	clouds: [],
 	hero:
 		{
@@ -284,8 +291,8 @@ var state = {
 				x0: 10,
 				x1: 10 + constants.hero.width,
 
-				y0: 200,
-				y1: 200 + constants.hero.height,
+				y0: constants.cloudBounds.y0 + 50 ,
+				y1: constants.cloudBounds.y0 + 50 + constants.hero.height,
 
 				vx: constants.birdDx,
 				vy: 0
@@ -332,7 +339,7 @@ var react = {
 				const init = state.step
 
 				const y0 = utils.randBetween(
-					0.150 * constants.bounds.y1,
+					0.150 * constants.bounds.y1 - constants.hero.height - 10,
 					0.875 * constants.bounds.y1)
 
 				const y1 = y0 + constants.cloud.height
@@ -374,6 +381,13 @@ var react = {
 
 				const coords = hero.position(state.step)
 
+				const ySlope = ( function () {
+
+					const coords1 = hero.position(state.step + 0.001)
+
+					return (coords.y1 - coords1.y1) / (coords.x1 - coords1.x1)
+				} )()
+
 				hero.position = always.func( FallingMotion({
 					'x0': coords.x0,
 					'x1': coords.x1,
@@ -381,7 +395,7 @@ var react = {
 					'y1': coords.y1,
 
 					'vx': constants.birdDx,
-					'vy': constants.birdDx,
+					'vy': ySlope,
 
 					'ax': 0,
 					'ay': constants.gravity,
