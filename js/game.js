@@ -66,6 +66,9 @@ var constants = ( function () {
 	self.step = 1
 
 	self.dx = 3
+	self.birdDx = 0.75
+
+	self.cloudInterval = .3
 
 	self.cloud = {
 		"width": 140,
@@ -176,12 +179,12 @@ var keyCodes = {
 
 var utils = {
 	'timer':
-		milliseconds => {
+		interval => {
 
 			var genesis = (new Date).getTime()
 
 			return function () {
-				always.numeric((new Date).getTime() > (genesis + milliseconds))
+				always.boolean((new Date).getTime() > (genesis + interval))
 			}
 		},
 	'trueWithOdds':
@@ -209,11 +212,11 @@ const FlyingMotion = self => {
 	return step => {
 
 		return {
-			x0: always.numeric(self.initialX0),
-			x1: always.numeric(self.initialX1),
+			x0: always.numeric(self.x0 + self.vx*step),
+			x1: always.numeric(self.x1 + self.vx*step),
 
-			y0: always.numeric(self.initialY0 + 7 * Math.sin(step / 10)),
-			y1: always.numeric(self.initialY1 + 7 * Math.sin(step / 10))
+			y0: always.numeric(self.y0 + 7 * Math.sin(step / 10)),
+			y1: always.numeric(self.y1 + 7 * Math.sin(step / 10))
 		}
 
 	}
@@ -271,18 +274,21 @@ const Cloud = self => {
 
 // the initial state
 var state = {
-	cloudIsReady:
+	cloudTimer:
 		function () {return true},
 
 	clouds: [],
 	hero:
 		{
 			position: FlyingMotion({
-				initialX0: 200,
-				initialX1: 200 + constants.hero.width,
+				x0: 10,
+				x1: 10 + constants.hero.width,
 
-				initialY0: 200,
-				initialY1: 200 + constants.hero.height
+				y0: 200,
+				y1: 200 + constants.hero.height,
+
+				vx: constants.birdDx,
+				vy: 0
 			}),
 
 			angle: 0,
@@ -326,8 +332,8 @@ var react = {
 				const init = state.step
 
 				const y0 = utils.randBetween(
-					1 / 10 * constants.bounds.y1,
-					2 / 3 * constants.bounds.y1)
+					0.150 * constants.bounds.y1,
+					0.875 * constants.bounds.y1)
 
 				const y1 = y0 + constants.cloud.height
 
@@ -339,6 +345,8 @@ var react = {
 				})
 
 			} )() )
+
+			state.cloudTimer = utils.timer(constants.cloudInterval)
 
 			state.nextCloud = always.whole(state.nextCloud + 1)
 
@@ -372,8 +380,8 @@ var react = {
 					'y0': coords.y0,
 					'y1': coords.y1,
 
-					'vx': 0,
-					'vy': 0,
+					'vx': constants.birdDx,
+					'vy': constants.birdDx,
 
 					'ax': 0,
 					'ay': constants.gravity,
@@ -541,7 +549,7 @@ const currently = {
 		},
 	cloudIsReady:
 		state => {
-			return Math.random() > 0.995
+			return state.cloudTimer()
 		},
 	offscren:
 		state => {
