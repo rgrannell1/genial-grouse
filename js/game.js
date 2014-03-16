@@ -6,56 +6,41 @@
 var can = document.getElementById("canvas")
 var ctx = can.getContext("2d")
 
-var always = ( function () {
+const always = ( function () {
 	/*
 		Contract functions.
 		Return a value if it meets criteria, otherwise throws an error.
 	*/
 
+	const checkThat = (predicate, type) => {
+		val => {
+			if (predicate(val)) {
+				return val
+			} else {
+				throw new TypeError(
+					"The contract always." + type + " was broken with the value " + val + ".\n" +
+					"Calling function was " + arguments.callee.caller.toString() + ".\n")
+			}
+		}
+	}
+
 	return {
 		'whole':
-			whole => {
-				// Is a number a whole number that isn't NaN?
-
-				if (whole === whole && whole % 1 === 0) {
-					return whole
-				} else {
-					throw new TypeError(
-						"The contract always.whole was broken with the value " + whole + ".\n" +
-						"Calling function was " + arguments.callee.caller.toString() + ".\n")
-				}
-			},
+			checkThat(val => {
+				return val === val && val %% 1 === 0
+			}, 'whole'),
 		'numeric':
-			numeric => {
-				if (numeric === numeric) {
-					return numeric
-				} else {
-					throw new TypeError(
-						"The contract always.numeric was broken with the value " + numeric + ".\n" +
-						"Calling function was " + arguments.callee.caller.toString() + ".\n")
-				}
-			},
+			checkThat(val => {
+				return val === value
+			}, 'numeric'),
 		'boolean':
-			boolean => {
-				if (boolean === false || boolean === true) {
-					return boolean
-				} else {
-					throw new TypeError(
-						"The contract always.boolean was broken with the value " + boolean + ".\n" +
-						"Calling function was " + arguments.callee.caller.toString() + ".\n")
-				}
-			},
+			checkThat(val => {
+				return val === false || val === true
+			}, 'boolean'),
 		'func':
-			func => {
-				if (func && typeof func === 'function') {
-					return func
-				} else {
-					throw new TypeError(
-						"The contract always.func was broken with the value " + func + ".\n" +
-						"Calling function was " + arguments.callee.caller.toString() + ".\n")
-
-				}
-			}
+			checkThat(val => {
+				return func && typeof func === 'function'
+			}, 'function')
 	}
 
 } )()
@@ -63,7 +48,11 @@ var always = ( function () {
 
 
 
-var constants = ( function () {
+const constants = ( function () {
+	/*
+		This module contains most of the arbitrary constants used
+		in the game, including some translation functions.
+	*/
 
 	var self = {}
 
@@ -98,6 +87,7 @@ var constants = ( function () {
 		width: 32,
 		height: 32
 	}
+
 	self.score = {
 		x0: 100,
 		y0: 50
@@ -330,330 +320,354 @@ var state = {
 	step: 0
 }
 
-var react = {
-	addClouds:
-		state => {
+const react = ( function () {
+	/*
+		This module returns 'setters' for the game state. Each function
+		herein takes a part of the game state, and modifies it. They don't usually
+		test if the state should be modified - that task falls on update and currently.
+	*/
 
-			state.clouds = state.clouds.concat( ( function () {
+	return {
+		addClouds:
+			state => {
 
-				const init = state.step
+				state.clouds = state.clouds.concat( ( function () {
 
-				const y0 = utils.randBetween(
-					0.150 * constants.bounds.y1 - constants.hero.height - 10,
-					0.875 * constants.bounds.y1)
+					const init = state.step
 
-				const y1 = y0 + constants.cloud.height
+					const y0 = utils.randBetween(
+						0.150 * constants.bounds.y1 - constants.hero.height - 10,
+						0.875 * constants.bounds.y1)
 
-				return Cloud({
-					init: always.whole(state.step),
-					y0: always.numeric(y0),
-					y1: always.numeric(y1),
-					cloudId: always.whole(state.nextCloud)
+					const y1 = y0 + constants.cloud.height
+
+					return Cloud({
+						init: always.whole(state.step),
+						y0: always.numeric(y0),
+						y1: always.numeric(y1),
+						cloudId: always.whole(state.nextCloud)
+					})
+
+				} )() )
+
+				state.cloudTimer = utils.timer(constants.cloudInterval)
+
+				state.nextCloud = always.whole(state.nextCloud + 1)
+
+				return state
+			},
+		removeOldClouds:
+			state => {
+				/*
+					Remove the cloud functions that - at the current
+					timestep - are offscreen.
+				*/
+
+				state.clouds = state.clouds.filter(function (cloud) {
+					return always.boolean(cloud(state.step).x0 > constants.bounds.x0)
 				})
 
-			} )() )
-
-			state.cloudTimer = utils.timer(constants.cloudInterval)
-
-			state.nextCloud = always.whole(state.nextCloud + 1)
-
-			return state
-		},
-	removeOldClouds:
-		state => {
-			/*
-				Remove the cloud functions that - at the current
-				timestep - are offscreen.
-			*/
-
-			state.clouds = state.clouds.filter(function (cloud) {
-				return always.boolean(cloud(state.step).x0 > constants.bounds.x0)
-			})
-
-			return state
-		},
-	clipWings:
-		state => {
-			/*
-				Swap the initial flying sin-wave motion function for a
-				falling motion function.
-			*/
-
-			var hero = state.hero
-
-			if (hero.positionType === "flying") {
-				hero.positionType = 'falling'
-
-				const coords = hero.position(state.step)
-
-				const ySlope = ( function () {
-
-					const coords1 = hero.position(state.step + 0.001)
-
-					return (coords.y1 - coords1.y1) / (coords.x1 - coords1.x1)
-				} )()
-
-				hero.position = always.func( FallingMotion({
-					x0: coords.x0,
-					x1: coords.x1,
-					y0: coords.y0,
-					y1: coords.y1,
-
-					vx: constants.birdDx,
-					vy: ySlope,
-
-					ax: 0,
-					ay: constants.gravity,
-
-					init: state.step
-				}) )
-			}
-
-			state.hero = hero
-
-			return state
-		},
-	enqueueCollisions:
-		state => {
-			/*
-			Every moving object in the game has a trajectory function.
-			Because of this collisions can easily be found before they happen;
-			the player trajectory function and each cloud trajectory function can
-			be used to checked to see if they intersect at any point.
-
-			If an interection between the player and cloud is found in the future,
-			then the player either rebounds (1.), lands on the platform (2.), or
-
-
-			1, Rebounds. The x component of the birds velocity is reversed.
-			2, Lands. The y component of the acceleration and velocities are set
-				to zero, and the x component is set to the scroll speed dx.
-			3, Falls into oblivion. The trajectory is kept.
-			*/
-
-			var hero = state.hero
-
-			if (hero.positionType !== 'falling') {
 				return state
-			}
-
-			const upperStep = state.step + constants.maxJumpSteps
-
-			const clouds = state.clouds
-
-			// is the
-			// player(t).x1 == cloud(t).x0 &&
-			// player(y).y1 >  cloud(t).y0 && player(y).y0 < cloud(t).y1
-
-
-			state.collisions = {
-				position:
-					StandingMotion({
-						x0: 100,
-						x1: 100,
-
-						y0: hero.position(100).y0,
-						y1: hero.position(100).y1,
-
-						init: 1
-					}),
-				step:
-					100
-			}
-
-			return state
-		},
-	alterCourse:
-		state => {
-			/*
-				The pre-calculated collision point has
-				been reached, so we need to swap out
-				the current player's motion function for
-				the pre-computed motion function.
-			*/
-
-			const hero = state.player
-			const collision = state.collisions[0]
-
-			hero.position = collision.position
-
-			state.collisions = []
-			state.hero = hero
-
-			return state
-		},
-	endGame:
-		state => {
-			/*
-				The game is over.
-			*/
-
-			state.hero.isDead = true
-
-			return state
-		},
-	beginJumpPowerup:
-		time => {
-			return state => {
+			},
+		clipWings:
+			state => {
 				/*
-					register that we are getting ready to jump.
+					Swap the initial flying sin-wave motion function for a
+					falling motion function.
 				*/
 
 				var hero = state.hero
 
-				if (hero.positionType === 'standing' || hero.positionType === "falling") {
-					hero.jumps = {
-						'time': time
-					}
+				if (hero.positionType === "flying") {
+					hero.positionType = 'falling'
+
+					const coords = hero.position(state.step)
+
+					const ySlope = ( function () {
+
+						const coords1 = hero.position(state.step + 0.001)
+
+						return (coords.y1 - coords1.y1) / (coords.x1 - coords1.x1)
+					} )()
+
+					hero.position = always.func( FallingMotion({
+						x0: coords.x0,
+						x1: coords.x1,
+						y0: coords.y0,
+						y1: coords.y1,
+
+						vx: constants.birdDx,
+						vy: ySlope,
+
+						ax: 0,
+						ay: constants.gravity,
+
+						init: state.step
+					}) )
 				}
+
 				state.hero = hero
 
 				return state
-			}
-		},
-	jump:
-		function (x, y, time) {
-			return state => {
+			},
+		enqueueCollisions:
+			state => {
+				/*
+				Every moving object in the game has a trajectory function.
+				Because of this collisions can easily be found before they happen;
+				the player trajectory function and each cloud trajectory function can
+				be used to checked to see if they intersect at any point.
 
-				if (state.hero.positionType !== "standing") {
+				If an interection between the player and cloud is found in the future,
+				then the player either rebounds (1.), lands on the platform (2.), or
+
+
+				1, Rebounds. The x component of the birds velocity is reversed.
+				2, Lands. The y component of the acceleration and velocities are set
+					to zero, and the x component is set to the scroll speed dx.
+				3, Falls into oblivion. The trajectory is kept.
+				*/
+
+				var hero = state.hero
+
+				if (hero.positionType !== 'falling') {
 					return state
 				}
 
-				var magnitude = constants.asMagnitude(time - state.hero.jumps.time)
-				var hero = state.hero
+				const upperStep = state.step + constants.maxJumpSteps
 
-				var mouse = {
-					x: always.numeric(x - canvas.offsetLeft),
-					y: always.numeric(y - canvas.offsetTop)
+				const clouds = state.clouds
+
+				// is the
+				// player(t).x1 == cloud(t).x0 &&
+				// player(y).y1 >  cloud(t).y0 && player(y).y0 < cloud(t).y1
+
+
+				state.collisions = {
+					position:
+						StandingMotion({
+							x0: 100,
+							x1: 100,
+
+							y0: hero.position(100).y0,
+							y1: hero.position(100).y1,
+
+							init: 1
+						}),
+					step:
+						100
 				}
 
-				var dist = {
-					x: always.numeric(mouse.x - hero.x1),
-					y: always.numeric(mouse.y - hero.y1)
-				}
+				return state
+			},
+		alterCourse:
+			state => {
+				/*
+					The pre-calculated collision point has
+					been reached, so we need to swap out
+					the current player's motion function for
+					the pre-computed motion function.
+				*/
 
-				var angle = Math.atan(dist.y / dist.x)
+				const hero = state.player
+				const collision = state.collisions[0]
 
-				var velocities = {
-					x:
-						constants.asVelocity( magnitude * Math.cos(angle) ),
-					y:
-						constants.asVelocity( magnitude * Math.sin(angle) )
-				}
+				hero.position = collision.position
 
-				hero.vx = velocities.x
-				hero.vy = velocities.y
-
-				hero.y0 = always.numeric(hero.y0 - 1)
-				hero.y1 = always.numeric(hero.y1 - 1)
-
-				hero.positionType = 'falling'
-				hero.jumps = {}
-
+				state.collisions = []
 				state.hero = hero
 
 				return state
+			},
+		endGame:
+			state => {
+				/*
+					The game is over.
+				*/
+
+				state.hero.isDead = true
+
+				return state
+			},
+		beginJumpPowerup:
+			time => {
+				return state => {
+					/*
+						register that we are getting ready to jump.
+					*/
+
+					var hero = state.hero
+
+					if (hero.positionType === 'standing' || hero.positionType === "falling") {
+						hero.jumps = {
+							'time': time
+						}
+					}
+					state.hero = hero
+
+					return state
+				}
+			},
+		jump:
+			function (x, y, time) {
+				return state => {
+
+					if (state.hero.positionType !== "standing") {
+						return state
+					}
+
+					var magnitude = constants.asMagnitude(time - state.hero.jumps.time)
+					var hero = state.hero
+
+					var mouse = {
+						x: always.numeric(x - canvas.offsetLeft),
+						y: always.numeric(y - canvas.offsetTop)
+					}
+
+					var dist = {
+						x: always.numeric(mouse.x - hero.x1),
+						y: always.numeric(mouse.y - hero.y1)
+					}
+
+					var angle = Math.atan(dist.y / dist.x)
+
+					var velocities = {
+						x:
+							constants.asVelocity( magnitude * Math.cos(angle) ),
+						y:
+							constants.asVelocity( magnitude * Math.sin(angle) )
+					}
+
+					hero.vx = velocities.x
+					hero.vy = velocities.y
+
+					hero.y0 = always.numeric(hero.y0 - 1)
+					hero.y1 = always.numeric(hero.y1 - 1)
+
+					hero.positionType = 'falling'
+					hero.jumps = {}
+
+					state.hero = hero
+
+					return state
+				}
+			}
+	}
+})()
+
+const currently = ( function () {
+	/*
+		This module returns predicates that inspect the
+		current state. These are currently used in the drawing
+		and updating modules.
+	*/
+
+	return {
+		isCloudy:
+			state => {
+				return state.clouds.length > 0
+			},
+		noFutureCollisions:
+			state => {
+				return state.collisions.length == 0
+			},
+		cloudIsReady:
+			state => {
+				return state.cloudTimer()
+			},
+		offscren:
+			state => {
+
+				const coords = state.hero.position( state.step )
+
+				const isOffscreen = coords.y1 > constants.bounds.y1 ||
+					coords.x0 < constants.bounds.x0 ||
+					coords.x1 > constants.bounds.x1
+
+				return isOffscreen
+			},
+		flying:
+			state => {
+				return state.hero.positionType === 'flying'
+			},
+		falling:
+			state => {
+				return state.hero.positionType === 'falling'
+			},
+		notFalling:
+			state => {
+				return state.hero.positionType !== 'falling'
+			},
+
+		colliding:
+			state => {
+				return state.collisions.length > 0 &&
+				state.collisions[0].step === state.step
+			},
+
+		isDead:
+			state => {
+				return state.hero.isDead
+			},
+		isAlive:
+			state => {
+				return !state.hero.isDead
+			}
+	}
+
+} )()
+
+var update = ( function () {
+	/*
+		This module returns a function that - given the
+		game state at state.step - returns the state at state.step + 1
+	*/
+
+	return state => {
+
+		const when = (condition, reaction) => {
+			// side-effectfully update state
+
+			if (condition(state)) {
+				state.reactions = state.reactions.concat([reaction])
 			}
 		}
 
+		when(currently.cloudIsReady, react.addClouds)
 
-}
+		when(currently.isCloudy, react.removeOldClouds)
 
-const currently = {
-	isCloudy:
-		state => {
-			return state.clouds.length > 0
-		},
-	noFutureCollisions:
-		state => {
-			return state.collisions.length == 0
-		},
-	cloudIsReady:
-		state => {
-			return state.cloudTimer()
-		},
-	offscren:
-		state => {
+		when(currently.offscren, react.endGame)
 
-			const coords = state.hero.position( state.step )
+		when(currently.noFutureCollisions, react.enqueueCollisions)
 
-			const isOffscreen = coords.y1 > constants.bounds.y1 ||
-				coords.x0 < constants.bounds.x0 ||
-				coords.x1 > constants.bounds.x1
+		when(currently.colliding, react.alterCourse)
 
-			return isOffscreen
-		},
-	flying:
-		state => {
-			return state.hero.positionType === 'flying'
-		},
-	falling:
-		state => {
-			return state.hero.positionType === 'falling'
-		},
-	notFalling:
-		state => {
-			return state.hero.positionType !== 'falling'
-		},
+		/*
+			consume every event in the queue, in order.
+		*/
 
-	colliding:
-		state => {
-			return state.collisions.length > 0 &&
-			state.collisions[0].step === state.step
-		},
+		for (var ith = 0; ith < state.reactions.length; ith++) {
+			var reaction = state.reactions[ith]
 
-	isDead:
-		state => {
-			return state.hero.isDead
-		},
-	isAlive:
-		state => {
-			return !state.hero.isDead
+			if (reaction) {
+				state = always.func(reaction)(state)
+			}
 		}
-}
 
-var _update = state => {
-	/*
-		given the state at t, calculate the state at t + dt
-	*/
+		state.reactions = []
+		state.step = always.whole(state.step + 1)
 
-	const when = (condition, reaction) => {
-		// side-effectfully update state
-
-		if (condition(state)) {
-			state.reactions = state.reactions.concat([reaction])
-		}
+		return state
 	}
 
-	when(currently.cloudIsReady, react.addClouds)
-
-	when(currently.isCloudy, react.removeOldClouds)
-
-	when(currently.offscren, react.endGame)
-
-	when(currently.noFutureCollisions, react.enqueueCollisions)
-
-	when(currently.colliding, react.alterCourse)
-
-	/*
-		consume every event in the queue, in order.
-	*/
-
-	for (var ith = 0; ith < state.reactions.length; ith++) {
-		var reaction = state.reactions[ith]
-
-		if (reaction) {
-			state = always.func(reaction)(state)
-		}
-	}
-
-	state.reactions = []
-	state.step = always.whole(state.step + 1)
-
-	return state
-}
+} )()
 
 const draw = ( function () {
+	/*
+		This module returns a function that handles all canvas
+		drawing for the game.
+	*/
 
 	const render = {
 		cloud:
@@ -727,9 +741,6 @@ const draw = ( function () {
 	}
 
 	return state => {
-		/*
-			given the current state draw each entity to the screen.
-		*/
 
 		const when = (condition, reaction) => {
 			// side-effectfully update state.
@@ -744,7 +755,6 @@ const draw = ( function () {
 		when(currently.isDead, render.deathScreen)
 		when(currently.isAlive, render.score)
 		when(currently.isAlive, render.hero)
-
 	}
 
 } )()
@@ -756,14 +766,14 @@ const draw = ( function () {
 
 ;( function () {
 	/*
-		Attach event listeners to the document.
+		This module attaches event listeners to the canvas.
 	*/
 
 	const upon = function (event, response) {
+		//
 
 		can.addEventListener(event, event => {
-			state.reactions = state.reactions.concat([
-				response(event) ])
+			state.reactions = state.reactions.concat([ response(event) ])
 		})
 	}
 
@@ -787,6 +797,10 @@ const draw = ( function () {
 } )()
 
 ;( function () {
+	/*
+		This module contains the main game loop, and
+		the code that ends the game.
+	*/
 
 	const loop = function () {
 		/*
@@ -794,7 +808,7 @@ const draw = ( function () {
 		*/
 
 		if (!state.hero.isDead) {
-			state = _update(state);
+			state = update(state);
 			draw(state)
 		} else {
 			clearInterval(GAMEID)
