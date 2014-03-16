@@ -60,6 +60,7 @@ const constants = ( function () {
 
 	self.dx = 3
 	self.birdDx = 0.75
+	self.epsilon = 0.000001
 
 	self.cloudInterval = .3
 
@@ -206,6 +207,17 @@ const utils = ( function () {
 		}
 
 		return out
+	}
+
+	self.solve = (a, b, c) => {
+		// solve an equation of the form at^2 + bt + c = 0
+
+		const latter = Math.pow(b*b - 4*a*c, 0.5)
+
+		return [
+			always.numeric((-b + latter) / 2*a),
+			always.numeric((-b - latter) / 2*a)
+		]
 	}
 
 	return self
@@ -395,7 +407,7 @@ const react = ( function () {
 
 					const ySlope = ( function () {
 
-						const coords1 = hero.position(state.step + 0.001)
+						const coords1 = hero.position(state.step + constants.epsilon)
 
 						return (coords.y1 - coords1.y1) / (coords.x1 - coords1.x1)
 					} )()
@@ -438,35 +450,75 @@ const react = ( function () {
 				3, Falls into oblivion. The trajectory is kept.
 				*/
 
+				/*
+					for each cloud:
+						find the t' that the trajectory shares the same y position as the cloud
+						using the quadratic equation.
+
+						If t' isnt in the right range next.
+
+						get the [x0, x1, y0, y1 of the function at this time.
+						if
+
+
+						.5 at ^2 + vt- constant = 0
+
+
+				*/
+
 				var hero = state.hero
 
 				if (hero.positionType !== 'falling') {
 					return state
 				}
 
-				const upperStep = state.step + constants.maxJumpSteps
+				utils.flatmap(state.clouds, function (cloud) {
+					/*
+						for each cloud check at what time
+						the player shares its y position with the cloud.
+					*/
 
-				const clouds = state.clouds
+					var t = utils.solve(
+						components.ay, components.vy,
+						cloud.position(0).y0)
 
-				// is the
-				// player(t).x1 == cloud(t).x0 &&
-				// player(y).y1 >  cloud(t).y0 && player(y).y0 < cloud(t).y1
+					var future = {
+						hero: hero.position(t),
+						cloud: cloud(t)
+					}
+
+					var isAlignedX =
+						future.hero.x1 > future.cloud.x0 &&
+						future.hero.x0 < future.cloud.x1
+
+					if (isAlignedX) {
+						/*
+							The hero lands on the cloud in the future.
+							Return the collision details.
+						*/
+
+						return {
+							position: motion.standing({
+								x0: future.hero.x0,
+								x1: future.hero.x1,
+								y0: future.hero.y0,
+								y1: future.hero.y1
+							})
+						}
 
 
-				state.collisions = {
-					position:
-						motion.standing({
-							x0: 100,
-							x1: 100,
 
-							y0: hero.position(100).y0,
-							y1: hero.position(100).y1,
 
-							init: 1
-						}),
-					step:
-						100
-				}
+					}
+
+
+
+				})
+
+
+
+
+
 
 				return state
 			},
