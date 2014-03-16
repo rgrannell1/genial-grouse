@@ -76,8 +76,7 @@ var constants = ( function () {
 
 	self.cloud = {
 		width: 140,
-		height: 140 / Math.pow(1.613, 3),
-		cloudFrequency: 1/10
+		height: 140 / Math.pow(1.613, 3)
 	}
 
 	self.bounds = {
@@ -311,7 +310,7 @@ var state = {
 			positionType:
 				'flying',
 
-			jumpStart: {
+			jumps: {
 
 			}
 		},
@@ -446,6 +445,7 @@ var react = {
 			// player(t).x1 == cloud(t).x0 &&
 			// player(y).y1 >  cloud(t).y0 && player(y).y0 < cloud(t).y1
 
+
 			state.collisions = {
 				position:
 					StandingMotion({
@@ -502,7 +502,7 @@ var react = {
 				var hero = state.hero
 
 				if (hero.positionType === 'standing' || hero.positionType === "falling") {
-					hero.jumpStart = {
+					hero.jumps = {
 						'time': time
 					}
 				}
@@ -513,16 +513,13 @@ var react = {
 		},
 	jump:
 		function (x, y, time) {
-			/*
-				jump.
-			*/
 			return state => {
 
 				if (state.hero.positionType !== "standing") {
 					return state
 				}
 
-				var magnitude = constants.asMagnitude(time - state.hero.jumpStart.time)
+				var magnitude = constants.asMagnitude(time - state.hero.jumps.time)
 				var hero = state.hero
 
 				var mouse = {
@@ -551,7 +548,7 @@ var react = {
 				hero.y1 = always.numeric(hero.y1 - 1)
 
 				hero.positionType = 'falling'
-				hero.jumpStart = {}
+				hero.jumps = {}
 
 				state.hero = hero
 
@@ -567,7 +564,7 @@ const currently = {
 		state => {
 			return state.clouds.length > 0
 		},
-	noCollisionsQueued:
+	noFutureCollisions:
 		state => {
 			return state.collisions.length == 0
 		},
@@ -634,7 +631,7 @@ var _update = state => {
 
 	when(currently.offscren, react.endGame)
 
-	when(currently.noCollisionsQueued, react.enqueueCollisions)
+	when(currently.noFutureCollisions, react.enqueueCollisions)
 
 	when(currently.colliding, react.alterCourse)
 
@@ -656,120 +653,115 @@ var _update = state => {
 	return state
 }
 
+const draw = ( function () {
 
-const render = {
-	cloud:
-		state => {
+	const render = {
+		cloud:
+			state => {
 
-			ctx.fillStyle = constants.colours.white
-
-			state.clouds.forEach(cloud => {
-
-				var coords = cloud(state.step)
-
-				ctx.fillRect(coords.x0, coords.y0, constants.cloud.width, constants.cloud.height)
-			})
-		},
-	hero:
-		state => {
-
-			var hero = state.hero
-			var birdy = document.getElementById("bird-asset")
-
-			if (hero.jumpStart.time) {
-				ctx.fillStyle = constants.colours.black
-			} else {
 				ctx.fillStyle = constants.colours.white
+
+				state.clouds.forEach(cloud => {
+
+					var coords = cloud(state.step)
+
+					ctx.fillRect(coords.x0, coords.y0, constants.cloud.width, constants.cloud.height)
+				})
+			},
+		hero:
+			state => {
+
+				var hero = state.hero
+				var birdy = document.getElementById("bird-asset")
+
+				if (hero.jumps.time) {
+					ctx.fillStyle = constants.colours.black
+				} else {
+					ctx.fillStyle = constants.colours.white
+				}
+
+				const coords = hero.position(state.step)
+
+				ctx.drawImage(birdy, coords.x0, coords.y0)
+			},
+		score:
+			state => {
+				// draw the score to the corner of the screen.
+
+				ctx.font = "30px Monospace"
+
+				ctx.fillText(
+					state.score.value + "",
+					constants.score.x0, constants.score.y0)
+
+			},
+		deathScreen:
+			state => {
+
+				if (state.hero.isDead) {
+
+				ctx.fillStyle = 'rgba(0,0,0,0.6)'
+
+				ctx.fillRect(
+					constants.bounds.x0, constants.bounds.y0,
+					constants.bounds.x1, constants.bounds.y1)
+
+				ctx.fillStyle = constants.colours.blue
+
+				ctx.fillRect(
+					constants.bounds.x0, 200,
+					constants.bounds.x1, 100)
+
+				ctx.font = "20px Monospace"
+
+				ctx.fillStyle = constants.colours.white
+
+				value = state.score.value
+
+				ctx.fillText(
+					"You ran out of cluck. " +
+					"Score: " + state.score.value,
+					constants.score.x0, 265)
+				}
 			}
-
-			const coords = hero.position(state.step)
-
-			ctx.drawImage(birdy, coords.x0, coords.y0)
-		},
-	score:
-		state => {
-			// draw the score to the corner of the screen.
-
-			ctx.font = "30px Monospace"
-
-			ctx.fillText(
-				state.score.value + "",
-				constants.score.x0, constants.score.y0)
-
-		},
-	deathScreen:
-		state => {
-
-			if (state.hero.isDead) {
-
-			ctx.fillStyle = 'rgba(0,0,0,0.6)'
-
-			ctx.fillRect(
-				constants.bounds.x0, constants.bounds.y0,
-				constants.bounds.x1, constants.bounds.y1)
-
-			ctx.fillStyle = constants.colours.blue
-
-			ctx.fillRect(
-				constants.bounds.x0, 200,
-				constants.bounds.x1, 100)
-
-			ctx.font = "20px Monospace"
-
-			ctx.fillStyle = constants.colours.white
-
-			value = state.score.value
-
-			if (value < 3) {
-				var message = "Try Harder. Score: " + value
-			} 	else if (value < 10) {
-				var message = ". Score: " + value
-			} else {
-				var message = "Well done. Score: " + value
-			}
-
-			ctx.fillText(
-				"You ran out of cluck. " +
-				"Score: " + state.score.value,
-				constants.score.x0, 265)
-			}
-		}
-}
-
-const draw = state => {
-	/*
-		given the current state draw each entity to the screen.
-	*/
-
-	const when = (condition, reaction) => {
-		// side-effectfully update state.
-
-		if (condition(state)) {
-			reaction(state)
-		}
 	}
-	canvas.width = canvas.width
 
-	when(currently.isCloudy, render.cloud)
-	when(currently.isDead, render.deathScreen)
-	when(currently.isAlive, render.score)
-	when(currently.isAlive, render.hero)
+	return state => {
+		/*
+			given the current state draw each entity to the screen.
+		*/
 
-}
+		const when = (condition, reaction) => {
+			// side-effectfully update state.
+
+			if (condition(state)) {
+				reaction(state)
+			}
+		}
+		canvas.width = canvas.width
+
+		when(currently.isCloudy, render.cloud)
+		when(currently.isDead, render.deathScreen)
+		when(currently.isAlive, render.score)
+		when(currently.isAlive, render.hero)
+
+	}
+
+} )()
 
 
 
 
 
 
-( function () {
+;( function () {
 	/*
 		Attach event listeners to the document.
 	*/
 
 	const upon = function (event, response) {
 
-		window.addEventListener(event, event => {
+		can.addEventListener(event, event => {
 			state.reactions = state.reactions.concat([
 				response(event) ])
 		})
@@ -794,29 +786,21 @@ const draw = state => {
 
 } )()
 
+;( function () {
 
+	const loop = function () {
+		/*
+			repeatedly update the state.
+		*/
 
-
-
-
-
-
-
-
-
-
-
-const loop = function () {
-	/*
-		repeatedly update the state.
-	*/
-
-	if (!state.hero.isDead) {
-		state = _update(state);
-		draw(state)
-	} else {
-		clearInterval(GAMEID)
+		if (!state.hero.isDead) {
+			state = _update(state);
+			draw(state)
+		} else {
+			clearInterval(GAMEID)
+		}
 	}
-}
 
-const GAMEID = setInterval(loop, 1000 / 60)
+	const GAMEID = setInterval(loop, 1000 / 60)
+
+} )()
