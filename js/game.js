@@ -102,7 +102,7 @@ const constants = ( function () {
 
 	self.asVelocity =
 		velocity => {
-			var terminalVelocity = 8
+			const terminalVelocity = 8
 
 			if (velocity > 0) {
 				return Math.min(velocity, terminalVelocity)
@@ -182,7 +182,7 @@ const utils = ( function () {
 
 	self.timer = interval => {
 
-		var genesis = self.getTime()
+		const genesis = self.getTime()
 
 		return function () {
 			always.boolean(self.getTime() > (genesis + interval))
@@ -211,67 +211,75 @@ const utils = ( function () {
 	return self
 } )()
 
-const FlyingMotion = self => {
-	return step => {
+const motion = ( function () {
 
-		return {
-			x0: always.numeric(self.x0 + self.vx*step),
-			x1: always.numeric(self.x1 + self.vx*step),
+	var self = {}
 
-			y0: always.numeric(self.y0 + 7 * Math.sin(step / 10)),
-			y1: always.numeric(self.y1 + 7 * Math.sin(step / 10))
+	self.flying = self => {
+		return step => {
+
+			return {
+				x0: always.numeric(self.x0 + self.vx*step),
+				x1: always.numeric(self.x1 + self.vx*step),
+
+				y0: always.numeric(self.y0 + 7 * Math.sin(step / 10)),
+				y1: always.numeric(self.y1 + 7 * Math.sin(step / 10))
+			}
 		}
 	}
-}
 
+	self.standing = self => {
+		return step => {
+			/*
 
-const StandingMotion = self => {
-	return step => {
+			*/
+			return {
+				x0: always.numeric( self.x0 - (constants.dx * (step - self.init)) ) ,
+				x1: always.numeric( self.x1 - (constants.dx * (step - self.init)) ) ,
 
-		return {
-			x0: always.numeric( self.x0 - (constants.dx * (step - self.init)) ) ,
-			x1: always.numeric( self.x1 - (constants.dx * (step - self.init)) ) ,
-
-			y0: always.numeric(self.y0) ,
-			y1: always.numeric(self.y1)
+				y0: always.numeric(self.y0) ,
+				y1: always.numeric(self.y1)
+			}
 		}
 	}
-}
 
-const FallingMotion = self => {
-	return step => {
-		/*
-			given an initial v→ generate a function giving
-			the players position at a given step. This closed form
-			makes it easier to raycast collisions.
-		*/
+	self.falling = self => {
+		return step => {
+			/*
+				given an initial v→ generate a function giving
+				the players position at a given step. This closed form
+				makes it easier to raycast collisions.
+			*/
 
-		const time = step - self.init
+			const time = step - self.init
 
-		return {
-			x0: always.numeric(self.x0 + self.vx * time + 0.5 * self.ax * (time * time)),
-			x1: always.numeric(self.x1 + self.vx * time + 0.5 * self.ax * (time * time)),
+			return {
+				x0: always.numeric(self.x0 + self.vx * time + 0.5 * self.ax * (time * time)),
+				x1: always.numeric(self.x1 + self.vx * time + 0.5 * self.ax * (time * time)),
 
-			y0: always.numeric(self.y0 + self.vy * time + 0.5 * self.ay * (time * time)),
-			y1: always.numeric(self.y1 + self.vy * time + 0.5 * self.ay * (time * time))
+				y0: always.numeric(self.y0 + self.vy * time + 0.5 * self.ay * (time * time)),
+				y1: always.numeric(self.y1 + self.vy * time + 0.5 * self.ay * (time * time))
+			}
 		}
 	}
-}
 
-const Cloud = self => {
-	return step => {
+	self.cloud = self => {
+		return step => {
 
-		return {
-			x0: always.numeric( constants.bounds.x1 - (constants.dx * (step - self.init)) ),
-			x1: always.numeric( constants.bounds.x1 - (constants.dx * (step - self.init)) + constants.cloud.width ),
+			return {
+				x0: always.numeric( constants.bounds.x1 - (constants.dx * (step - self.init)) ),
+				x1: always.numeric( constants.bounds.x1 - (constants.dx * (step - self.init)) + constants.cloud.width ),
 
-			y0: always.numeric(self.y0),
-			y1: always.numeric(self.y1),
+				y0: always.numeric(self.y0),
+				y1: always.numeric(self.y1)
 
-			cloudId: always.whole(self.cloudId)
+			}
 		}
 	}
-}
+
+	return self
+
+} )()
 
 
 // the initial state
@@ -283,7 +291,7 @@ var state = {
 	clouds: [],
 	hero:
 		{
-			position: FlyingMotion({
+			position: motion.flying({
 				x0: 10,
 				x1: 10 + constants.hero.width,
 
@@ -341,12 +349,14 @@ const react = ( function () {
 
 					const y1 = y0 + constants.cloud.height
 
-					return Cloud({
-						init: always.whole(state.step),
-						y0: always.numeric(y0),
-						y1: always.numeric(y1),
+					return {
+						position: motion.cloud({
+							init: always.whole(state.step),
+							y0: always.numeric(y0),
+							y1: always.numeric(y1)
+						}),
 						cloudId: always.whole(state.nextCloud)
-					})
+					}
 
 				} )() )
 
@@ -364,7 +374,7 @@ const react = ( function () {
 				*/
 
 				state.clouds = state.clouds.filter(function (cloud) {
-					return always.boolean(cloud(state.step).x0 > constants.bounds.x0)
+					return always.boolean(cloud.position(state.step).x0 > constants.bounds.x0)
 				})
 
 				return state
@@ -390,7 +400,7 @@ const react = ( function () {
 						return (coords.y1 - coords1.y1) / (coords.x1 - coords1.x1)
 					} )()
 
-					hero.position = always.func( FallingMotion({
+					hero.position = always.func( motion.falling({
 						x0: coords.x0,
 						x1: coords.x1,
 						y0: coords.y0,
@@ -445,7 +455,7 @@ const react = ( function () {
 
 				state.collisions = {
 					position:
-						StandingMotion({
+						motion.standing({
 							x0: 100,
 							x1: 100,
 
@@ -677,7 +687,7 @@ const draw = ( function () {
 
 				state.clouds.forEach(cloud => {
 
-					var coords = cloud(state.step)
+					var coords = cloud.position(state.step)
 
 					ctx.fillRect(coords.x0, coords.y0, constants.cloud.width, constants.cloud.height)
 				})
@@ -685,8 +695,8 @@ const draw = ( function () {
 		hero:
 			state => {
 
-				var hero = state.hero
-				var birdy = document.getElementById("bird-asset")
+				const hero = state.hero
+				const birdy = document.getElementById("bird-asset")
 
 				if (hero.jumps.time) {
 					ctx.fillStyle = constants.colours.black
@@ -712,9 +722,7 @@ const draw = ( function () {
 		deathScreen:
 			state => {
 
-				if (state.hero.isDead) {
-
-				ctx.fillStyle = 'rgba(0,0,0,0.6)'
+				ctx.fillstyle = 'rgba(0,0,0,0.6)'
 
 				ctx.fillRect(
 					constants.bounds.x0, constants.bounds.y0,
@@ -736,7 +744,6 @@ const draw = ( function () {
 					"You ran out of cluck. " +
 					"Score: " + state.score.value,
 					constants.score.x0, 265)
-				}
 			}
 	}
 
