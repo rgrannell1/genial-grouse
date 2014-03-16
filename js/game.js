@@ -228,63 +228,81 @@ const motion = ( function () {
 	var self = {}
 
 	self.flying = self => {
-		return step => {
+		return (step, reflect = false) => {
+			/*
 
-			return {
-				x0: always.numeric(self.x0 + self.vx*step),
-				x1: always.numeric(self.x1 + self.vx*step),
+			*/
+			if (reflect) {
+				return self
+			} else {
+				return {
+					x0: always.numeric(self.x0 + self.vx*step),
+					x1: always.numeric(self.x1 + self.vx*step),
 
-				y0: always.numeric(self.y0 + 7 * Math.sin(step / 10)),
-				y1: always.numeric(self.y1 + 7 * Math.sin(step / 10))
+					y0: always.numeric(self.y0 + 7 * Math.sin(step / 10)),
+					y1: always.numeric(self.y1 + 7 * Math.sin(step / 10))
+				}
 			}
 		}
 	}
 
 	self.standing = self => {
-		return step => {
+		return (step, reflect = false) => {
 			/*
 
 			*/
-			return {
-				x0: always.numeric( self.x0 - (constants.dx * (step - self.init)) ) ,
-				x1: always.numeric( self.x1 - (constants.dx * (step - self.init)) ) ,
+			if (reflect) {
+				return self
+			} else {
+				return {
+					x0: always.numeric( self.x0 - (constants.dx * (step - self.init)) ) ,
+					x1: always.numeric( self.x1 - (constants.dx * (step - self.init)) ) ,
 
-				y0: always.numeric(self.y0) ,
-				y1: always.numeric(self.y1)
+					y0: always.numeric(self.y0) ,
+					y1: always.numeric(self.y1)
+				}
 			}
 		}
 	}
 
 	self.falling = self => {
-		return step => {
+		return (step, reflect = false) => {
 			/*
 				given an initial v→ generate a function giving
 				the players position at a given step. This closed form
 				makes it easier to raycast collisions.
 			*/
 
-			const time = step - self.init
+			if (reflect) {
+				return self
+			} else {
+				const time = step - self.init
 
-			return {
-				x0: always.numeric(self.x0 + self.vx * time + 0.5 * self.ax * (time * time)),
-				x1: always.numeric(self.x1 + self.vx * time + 0.5 * self.ax * (time * time)),
+				return {
+					x0: always.numeric(self.x0 + self.vx * time + 0.5 * self.ax * (time * time)),
+					x1: always.numeric(self.x1 + self.vx * time + 0.5 * self.ax * (time * time)),
 
-				y0: always.numeric(self.y0 + self.vy * time + 0.5 * self.ay * (time * time)),
-				y1: always.numeric(self.y1 + self.vy * time + 0.5 * self.ay * (time * time))
+					y0: always.numeric(self.y0 + self.vy * time + 0.5 * self.ay * (time * time)),
+					y1: always.numeric(self.y1 + self.vy * time + 0.5 * self.ay * (time * time))
+				}
 			}
 		}
 	}
 
 	self.cloud = self => {
-		return step => {
+		return (step, reflect = false) => {
 
-			return {
-				x0: always.numeric( constants.bounds.x1 - (constants.dx * (step - self.init)) ),
-				x1: always.numeric( constants.bounds.x1 - (constants.dx * (step - self.init)) + constants.cloud.width ),
+			if (reflect) {
+				return self
+			} else {
+				return {
+					x0: always.numeric( constants.bounds.x1 - (constants.dx * (step - self.init)) ),
+					x1: always.numeric( constants.bounds.x1 - (constants.dx * (step - self.init)) + constants.cloud.width ),
 
-				y0: always.numeric(self.y0),
-				y1: always.numeric(self.y1)
+					y0: always.numeric(self.y0),
+					y1: always.numeric(self.y1)
 
+				}
 			}
 		}
 	}
@@ -478,13 +496,15 @@ const react = ( function () {
 						the player shares its y position with the cloud.
 					*/
 
+					var components = cloud.position(0, true)
+
 					var t = utils.solve(
 						components.ay, components.vy,
 						cloud.position(0).y0)
 
 					var future = {
 						hero: hero.position(t),
-						cloud: cloud(t)
+						cloud: cloud.position(t)
 					}
 
 					var isAlignedX =
