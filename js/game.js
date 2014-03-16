@@ -13,7 +13,7 @@ const always = ( function () {
 	*/
 
 	const checkThat = (predicate, type) => {
-		val => {
+		return val => {
 			if (predicate(val)) {
 				return val
 			} else {
@@ -27,11 +27,11 @@ const always = ( function () {
 	return {
 		'whole':
 			checkThat(val => {
-				return val === val && val %% 1 === 0
+				return val === val && val % 1 === 0
 			}, 'whole'),
 		'numeric':
 			checkThat(val => {
-				return val === value
+				return val === val
 			}, 'numeric'),
 		'boolean':
 			checkThat(val => {
@@ -39,7 +39,7 @@ const always = ( function () {
 			}, 'boolean'),
 		'func':
 			checkThat(val => {
-				return func && typeof func === 'function'
+				return val && typeof val === 'function'
 			}, 'function')
 	}
 
