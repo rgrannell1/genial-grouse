@@ -210,17 +210,81 @@ const utils = ( function () {
 	}
 
 	self.solve = (a, b, c) => {
-		// solve an equation of the form at^2 + bt + c = 0
+		// solve an equation of the form at^2 + vt + c = 0
 
-		const latter = Math.pow(b*b - 4*a*c, 0.5)
+		const _ = undefined
 
-		return [
-			always.numeric((-b + latter) / 2*a),
-			always.numeric((-b - latter) / 2*a)
-		]
+		const match = (triplesList) => {
+			/*
+				Pattern match an array against a pattern array where
+				undefined acts as a wildcard, and return the matching response.
+			*/
+
+			var matchedResponse;
+			const args = Array.prototype.slice.call(arguments)
+
+			for (var tripleIth = 0; tripleIth < args.length; tripleIth++) {
+
+				var triple = args[tripleIth]
+
+				const values   = triple[0]
+				const pattern  = triple[1]
+				const response = triple[2]
+
+				var allMatches = true
+
+				for (var ith = 0; ith < values.length; ith++) {
+					allMatches = allMatches && (pattern[ith] === _ || values[ith] === pattern[ith])
+				}
+
+				if (allMatches) {
+					return always.func(response)
+				}
+			}
+		}
+
+		const solver = match(
+			[[a, b, c], [0, 0, 0], (a, b, c) => {
+				// infinitely many solutions.
+				return []
+			}],
+			[[a, b, c], [0, 0, _], (a, b, c) => {
+				// no solutions solutions.
+				return []
+			}],
+
+			[[a, b, c], [0, _, _], (a, b, c) => {
+				// linear-equation.
+
+				return [c / b, c / b]
+			}],
+
+			[[a, b, c], [_, 0, 0], (a, b, c) => {
+				// only the second-order term.
+
+				return [0]
+			}],
+
+			[[a, b, c], [_, _, _], (a, b, c) => {
+				// the quadratic formula; the most general case.
+
+				const latter = Math.pow(b*b - 4*a*c, 0.5)
+				const denominator = 2*a
+
+				console.assert(a * b * c !== 0)
+
+				return [
+					always.numeric((-b + latter) / denominator),
+					always.numeric((-b - latter) / denominator)]
+			}]
+		)
+
+
+		return solver(a, b, c)
 	}
 
 	return self
+
 } )()
 
 const motion = ( function () {
@@ -313,50 +377,60 @@ const motion = ( function () {
 
 
 // the initial state
-var state = {
-	cloudTimer:
-		function () {
-			return true
-		},
-	clouds: [],
-	hero:
-		{
-			position: motion.flying({
-				x0: 10,
-				x1: 10 + constants.hero.width,
 
-				y0: constants.cloudBounds.y0 + 50 ,
-				y1: constants.cloudBounds.y0 + 50 + constants.hero.height,
+var state = ( function () {
+	/*
+		The initial game state. All fields that
+		should be present are present from the start.
+	*/
 
-				vx: constants.birdDx,
-				vy: 0
-			}),
+	var self = {}
 
-			isDead:
-				false,
+	self.cloudTimer = function () {
+		return true
+	}
 
-			positionType:
-				'flying',
+	self.clouds = []
+	self.hero = {
+		position: motion.flying({
+			x0: 10,
+			x1: 10 + constants.hero.width,
 
-			jumps: {
+			y0: constants.cloudBounds.y0 + 50 ,
+			y1: constants.cloudBounds.y0 + 50 + constants.hero.height,
 
-			}
-		},
+			vx: constants.birdDx,
+			vy: 0
+		}),
+
+		isDead:
+			false,
+
+		positionType:
+			'flying',
+
+		jumps: {
+
+		}
+	}
 
 	// reactions are temporally ordered.
-	reactions: [],
-	collisions: {
+	self.reactions = []
+	self.collisions = {}
 
-	},
-	score:
-		{
-			value: 0,
-			x0: constants.score.x0,
-			y0: constants.score.y0
-		},
-	nextCloud: 0,
-	step: 0
-}
+	self.score = {
+		value: 0,
+		x0: constants.score.x0,
+		y0: constants.score.y0
+	}
+	self.nextCloud = 0,
+	self.step = 0
+
+	return self
+
+} )()
+
+
 
 const react = ( function () {
 	/*
@@ -486,9 +560,9 @@ const react = ( function () {
 
 				var hero = state.hero
 
-				if (hero.positionType !== 'falling') {
-					return state
-				}
+				//if (hero.positionType !== 'falling') {
+				//	return state
+				//}
 
 				utils.flatmap(state.clouds, function (cloud) {
 					/*
@@ -496,11 +570,16 @@ const react = ( function () {
 						the player shares its y position with the cloud.
 					*/
 
-					var components = cloud.position(0, true)
+					var comps = {
+						ay:
+							always.numeric(constants.gravity),
+						vy:
+							always.numeric(hero.position(0, true).vy),
+						c:
+							always.numeric(cloud.position(0).u0)
+					}
 
-					var t = utils.solve(
-						components.ay, components.vy,
-						cloud.position(0).y0)
+					var t = utils.solve(comps.ay, comps.vy, comps.c)
 
 					var future = {
 						hero: hero.position(t),
@@ -517,18 +596,15 @@ const react = ( function () {
 							Return the collision details.
 						*/
 
-						return {
+						return [{
 							position: motion.standing({
 								x0: future.hero.x0,
 								x1: future.hero.x1,
 								y0: future.hero.y0,
 								y1: future.hero.y1
-							})
-						}
-
-
-
-
+							}),
+							step: t
+						}]
 					}
 
 
@@ -651,7 +727,7 @@ const currently = ( function () {
 			},
 		noFutureCollisions:
 			state => {
-				return state.collisions.length == 0
+				return true || always.numeric(state.collisions.length) === 0
 			},
 		cloudIsReady:
 			state => {
