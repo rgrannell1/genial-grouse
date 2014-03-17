@@ -190,6 +190,15 @@ const utils = ( function () {
 		}
 	}
 
+	self.isEmpty = obj => {
+		for (var prop in obj) {
+			if (obj.hasOwnProperty(prop)) {
+				return false
+			}
+		}
+		return true
+	}
+
 	self.trueWithOdds =	prob => {
 		return always.numeric(Math.random() < prob)
 	}
@@ -277,8 +286,10 @@ const utils = ( function () {
 					return []
 				} else {
 					return [
-						always.numeric((-b + Math.sqrt(inner)) / denominator),
-						always.numeric((-b - Math.sqrt(inner)) / denominator)]
+						always.numeric(
+							(-b + Math.sqrt(inner)) / denominator),
+						always.numeric(
+							(-b - Math.sqrt(inner)) / denominator)]
 				}
 			}]
 		)
@@ -322,12 +333,13 @@ const motion = ( function () {
 			/*
 
 			*/
+
 			if (reflect) {
 				return self
 			} else {
 				return {
-					x0: always.numeric( self.x0 - (constants.dx * (step - self.init)) ) ,
-					x1: always.numeric( self.x1 - (constants.dx * (step - self.init)) ) ,
+					x0: always.numeric( self.x0 - (self.vx * (step - self.init)) ) ,
+					x1: always.numeric( self.x1 - (self.vx * (step - self.init)) ) ,
 
 					y0: always.numeric(self.y0) ,
 					y1: always.numeric(self.y1)
@@ -567,10 +579,11 @@ const react = ( function () {
 
 				var hero = state.hero
 
-				//if (hero.positionType !== 'falling') {
-				//	return state
-				//}
+				if (hero.positionType !== 'falling') {
+					return state
+				}
 
+				const futureCollisions =
 				utils.flatmap(state.clouds, function (cloud) {
 					/*
 						for each cloud check at what time
@@ -588,45 +601,38 @@ const react = ( function () {
 
 					const times = utils.solve(comps.ay, comps.vy, comps.c)
 
+					if (times.length === 0) {
+						return []
+					}
+
 					// the positive solution is the future intersection point.
 					const t = always.numeric(Math.max.apply(Math, times))
 
 					// sort out the solutions for t
 
-					//var future = {
-					//	hero: hero.position(t),
-					//	cloud: cloud.position(t)
-					//}
+					var future = {
+						hero: hero.position(t),
+						cloud: cloud.position(t)
+					}
 
-					//var isAlignedX =
-					//	future.hero.x1 > future.cloud.x0 &&
-					//	future.hero.x0 < future.cloud.x1
+					return [{
+						position: motion.standing({
+							x0: future.hero.x0,
+							x1: future.hero.x1,
+							y0: cloud.position(t).y0 - constants.hero.height,
+							y1: cloud.position(t).y0,
 
-					//if (isAlignedX) {
-						/*
-							The hero lands on the cloud in the future.
-							Return the collision details.
-						*/
+							vx: constants.dx,
+							vy: 0,
 
-					//	return [{
-					//		position: motion.standing({
-					//			x0: future.hero.x0,
-					//			x1: future.hero.x1,
-					//			y0: future.hero.y0,
-					//			y1: future.hero.y1
-					//		}),
-					//		step: t
-					//	}]
-					//}
-
-
-
+							init: Math.floor(t)
+						}),
+						step: Math.floor(t)
+					}]
 				})
 
-
-
-
-
+				// change!
+				state.collisions = futureCollisions[0]
 
 				return state
 			},
@@ -639,8 +645,8 @@ const react = ( function () {
 					the pre-computed motion function.
 				*/
 
-				const hero = state.player
-				const collision = state.collisions[0]
+				var hero = state.hero
+				var collision = state.collisions
 
 				hero.position = collision.position
 
@@ -739,13 +745,13 @@ const currently = ( function () {
 			},
 		noFutureCollisions:
 			state => {
-				return true || always.numeric(state.collisions.length) === 0
+				return utils.isEmpty(state.collisions)
 			},
 		cloudIsReady:
 			state => {
 				return state.cloudTimer()
 			},
-		offscren:
+		offscreen:
 			state => {
 
 				const coords = state.hero.position( state.step )
@@ -771,8 +777,7 @@ const currently = ( function () {
 
 		colliding:
 			state => {
-				return state.collisions.length > 0 &&
-				state.collisions[0].step === state.step
+				return !utils.isEmpty(state.collisions.length) && state.collisions.step > state.step
 			},
 
 		isDead:
@@ -807,11 +812,12 @@ var update = ( function () {
 
 		when(currently.isCloudy, react.removeOldClouds)
 
-		when(currently.offscren, react.endGame)
+		when(currently.offscreen, react.endGame)
 
 		when(currently.noFutureCollisions, react.enqueueCollisions)
 
-		when(currently.colliding, react.alterCourse)
+		//when(currently.colliding, react.alterCourse)
+		when(x => !utils.isEmpty(x.collisions), react.alterCourse)
 
 		/*
 			consume every event in the queue, in order.
