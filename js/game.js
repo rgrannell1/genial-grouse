@@ -268,17 +268,24 @@ const utils = ( function () {
 			[[a, b, c], [_, _, _], (a, b, c) => {
 				// the quadratic formula; the most general case.
 
-				const latter = Math.pow(b*b - 4*a*c, 0.5)
-				const denominator = 2*a
-
 				console.assert(a * b * c !== 0)
 
-				return [
-					always.numeric((-b + latter) / denominator),
-					always.numeric((-b - latter) / denominator)]
+				const inner = Math.abs(b * b - 4 * a * c)
+				const denominator = 2*a
+
+				if (inner < 0) {
+					return []
+				} else {
+					return [
+						always.numeric((-b + Math.sqrt(inner)) / denominator),
+						always.numeric((-b - Math.sqrt(inner)) / denominator)]
+				}
 			}]
 		)
 
+		always.numeric(a)
+		always.numeric(b)
+		always.numeric(c)
 
 		return solver(a, b, c)
 	}
@@ -576,10 +583,12 @@ const react = ( function () {
 						vy:
 							always.numeric(hero.position(0, true).vy),
 						c:
-							always.numeric(cloud.position(0).u0)
+							always.numeric(cloud.position(0).y0)
 					}
 
 					var t = utils.solve(comps.ay, comps.vy, comps.c)
+
+					// sort out the solutions for t
 
 					var future = {
 						hero: hero.position(t),
