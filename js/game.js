@@ -586,35 +586,38 @@ const react = ( function () {
 							always.numeric(cloud.position(0).y0)
 					}
 
-					var t = utils.solve(comps.ay, comps.vy, comps.c)
+					const times = utils.solve(comps.ay, comps.vy, comps.c)
+
+					// the positive solution is the future intersection point.
+					const t = always.numeric(Math.max.apply(Math, times))
 
 					// sort out the solutions for t
 
-					var future = {
-						hero: hero.position(t),
-						cloud: cloud.position(t)
-					}
+					//var future = {
+					//	hero: hero.position(t),
+					//	cloud: cloud.position(t)
+					//}
 
-					var isAlignedX =
-						future.hero.x1 > future.cloud.x0 &&
-						future.hero.x0 < future.cloud.x1
+					//var isAlignedX =
+					//	future.hero.x1 > future.cloud.x0 &&
+					//	future.hero.x0 < future.cloud.x1
 
-					if (isAlignedX) {
+					//if (isAlignedX) {
 						/*
 							The hero lands on the cloud in the future.
 							Return the collision details.
 						*/
 
-						return [{
-							position: motion.standing({
-								x0: future.hero.x0,
-								x1: future.hero.x1,
-								y0: future.hero.y0,
-								y1: future.hero.y1
-							}),
-							step: t
-						}]
-					}
+					//	return [{
+					//		position: motion.standing({
+					//			x0: future.hero.x0,
+					//			x1: future.hero.x1,
+					//			y0: future.hero.y0,
+					//			y1: future.hero.y1
+					//		}),
+					//		step: t
+					//	}]
+					//}
 
 
 
