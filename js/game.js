@@ -249,6 +249,14 @@ const utils = ( function () {
 		return solver(a, b, c)
 	}
 
+	self.asCanvasMouseCoords =
+		(x, y) => {
+			return {
+				x: always.numeric(x - can.offsetLeft),
+				y: always.numeric(y - can.offsetTop)
+			}
+		}
+
 	return self
 
 } )()
@@ -379,6 +387,9 @@ var state = ( function () {
 		lastCloud:
 			-1,
 
+		angle:
+			0,
+
 		jumps: {
 
 		}
@@ -456,6 +467,7 @@ const react = ( function () {
 
 				return state
 			},
+
 		clipWings:
 			state => {
 				/*
@@ -727,7 +739,7 @@ const react = ( function () {
 				}
 			},
 		jump:
-			function (x, y, time) {
+			(x, y, time) => {
 				return state => {
 
 					var hero = state.hero
@@ -740,10 +752,7 @@ const react = ( function () {
 
 					const heroCoords = hero.position(state.step)
 
-					var mouse = {
-						x: always.numeric(x - canvas.offsetLeft),
-						y: always.numeric(y - canvas.offsetTop)
-					}
+					var mouse = utils.asCanvasMouseCoords(x, y)
 
 					var dist = {
 						x: Math.abs(always.numeric(mouse.x - heroCoords.x1)),
@@ -781,7 +790,33 @@ const react = ( function () {
 
 					return state
 				}
+			},
+		setAngle:
+			(x, y) => {
+				return state => {
+
+					var hero = state.hero
+					const mouse = utils.asCanvasMouseCoords(x, y)
+					const heroCoords = hero.position(state.step)
+
+					var dist = {
+						x: always.numeric(mouse.x - heroCoords.x1),
+						y: always.numeric(mouse.y - heroCoords.y1)
+					}
+
+					if (dist.y === 0) {
+						var angle = 0
+					} else {
+						var angle = -Math.atan2(dist.x, dist.y) - (270) * 3.14/180
+					}
+
+					hero.angle = angle
+					state.hero = hero
+
+					return state
+				}
 			}
+
 	}
 })()
 
@@ -924,20 +959,26 @@ const draw = ( function () {
 				}
 
 				const coords  = hero.position(state.step)
-				const coords1 = hero.position(state.step + 0.01)
 
-				const dist = {
-					x: coords.x0 - coords1.x0,
-					y: coords.y0 - coords1.y0
-				}
+				if (hero.positionType === "standing") {
 
-				if (dist.y === 0) {
-					var angle = 0
+					var angle = hero.angle
+
 				} else {
-					var angle = -Math.atan2(dist.x, dist.y) + (270) * 3.14/180
-				}
 
-				//
+					const coords1 = hero.position(state.step + 0.01)
+
+					const dist = {
+						x: coords.x0 - coords1.x0,
+						y: coords.y0 - coords1.y0
+					}
+
+					if (dist.y === 0) {
+						var angle = 0
+					} else {
+						var angle = -Math.atan2(dist.x, dist.y) + (270) * 3.14/180
+					}
+				}
 
 				coordsPrime = {
 					x0:  Math.cos(angle) * coords.x0 + Math.sin(angle) * coords.y0,
@@ -1001,7 +1042,7 @@ const draw = ( function () {
 				reaction(state)
 			}
 		}
-		canvas.width = canvas.width
+		can.width = can.width
 
 		when(currently.isCloudy, render.cloud)
 		when(currently.isDead, render.deathScreen)
@@ -1042,6 +1083,10 @@ const draw = ( function () {
 
 		return react.jump(
 			event.pageX, event.pageY, utils.getTime())
+	})
+
+	upon('mousemove', event => {
+		return react.setAngle(event.pageX, event.pageY)
 	})
 
 } )()
