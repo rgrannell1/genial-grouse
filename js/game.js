@@ -628,7 +628,7 @@ const react = ( function () {
 						future.hero.x1 > future.cloud.x0 && future.hero.x0 < future.cloud.x1
 
 					const isAlignedY =
-						Math.abs(future.hero.y1 - future.cloud.y0) < 3
+						Math.abs(future.hero.y1 - future.cloud.y0) < 5
 
 					if (isAlignedX && isAlignedY) {
 						return [{
@@ -673,6 +673,7 @@ const react = ( function () {
 				var collision = state.collisions
 
 				hero.position = collision.position
+				hero.positionType = "standing"
 
 				state.collisions = []
 				state.hero = hero
@@ -712,12 +713,15 @@ const react = ( function () {
 			function (x, y, time) {
 				return state => {
 
-					if (state.hero.positionType !== "standing") {
+					var hero = state.hero
+
+					if (hero.positionType !== "standing") {
 						return state
 					}
 
-					var magnitude = constants.asMagnitude(time - state.hero.jumps.time)
-					var hero = state.hero
+					const magnitude = time - hero.jumps.time
+
+					const heroCoords = hero.position(state.step)
 
 					var mouse = {
 						x: always.numeric(x - canvas.offsetLeft),
@@ -725,24 +729,33 @@ const react = ( function () {
 					}
 
 					var dist = {
-						x: always.numeric(mouse.x - hero.x1),
-						y: always.numeric(mouse.y - hero.y1)
+						x: always.numeric(mouse.x - heroCoords.x1),
+						y: always.numeric(mouse.y - heroCoords.y1)
 					}
 
 					var angle = Math.atan(dist.y / dist.x)
 
 					var velocities = {
 						x:
-							constants.asVelocity( magnitude * Math.cos(angle) ),
+							magnitude * Math.cos(angle) / 30,
 						y:
-							constants.asVelocity( magnitude * Math.sin(angle) )
+							magnitude * Math.sin(angle) / 30
 					}
 
-					hero.vx = velocities.x
-					hero.vy = velocities.y
+					hero.position = motion.falling({
+						x0: heroCoords.x0,
+						x1: heroCoords.x1,
+						y0: heroCoords.y0,
+						y1: heroCoords.y1,
 
-					hero.y0 = always.numeric(hero.y0 - 1)
-					hero.y1 = always.numeric(hero.y1 - 1)
+						vx: always.numeric(velocities.x),
+						vy: always.numeric(velocities.y),
+
+						ax: 0,
+						ay: constants.gravity,
+
+						init: always.whole(state.step)
+					})
 
 					hero.positionType = 'falling'
 					hero.jumps = {}
@@ -978,7 +991,7 @@ const draw = ( function () {
 		if (state.hero.positionType === "flying") {
 			return react.clipWings
 		} else {
-			return react.beginJumpPowerup(utils.getTime)
+			return react.beginJumpPowerup(utils.getTime())
 		}
 	})
 
@@ -987,7 +1000,7 @@ const draw = ( function () {
 		return react.jump(
 			event.pageX,
 			event.pageY,
-			utils.getTime)
+			utils.getTime())
 	})
 
 } )()
