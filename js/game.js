@@ -58,7 +58,7 @@ const constants = ( function () {
 
 	self.step = 1
 
-	self.dx = 2
+	self.dx = 1.4
 	self.birdDx = 0.75
 	self.epsilon = 0.000001
 
@@ -116,59 +116,6 @@ const constants = ( function () {
 		y0: 0.150,
 		y1: 0.875
 	}
-
-	/*
-	Calculate how long the longest vertical jump will remain
-	on screen. This determines how far into the future to check
-	for collisions between a bird trajectory and platform.
-
-	λt. vy.t + 0.5 * g * t^2
-
-		derivative is
-
-	λt. vy + g * t
-
-	when the derivative is 0 the function is at its apex.
-	For what t is the derivative 0?
-
-	t_apex = -g / vy
-
-	We need to find the velocity vy that gives the height of the canvas
-	at its apex.
-
-	h_apex = vy^2 / 2g
-
-	Solving for vy WolframAlpha says we get
-
-	|vy| = g^0.5 * (h)^0.5
-
-	That currently gives us the time to the apex, and the value of vy that will
-	precisely hit the apex. The final value we need is the time it takes to fall from
-	the height h_apex to the ground given the gravity.
-
-	vy_final = (2 g h_apex)^0.5
-
-	t_falling = (vy_final - 0) / a
-
-	t_total = t_apex + t_falling
-
-	THE FINAL UNIT IS TIME STEPS, NOT SECONDS.
-	*/
-
-	// the launch velocity will just tip the top of the screen.
-	const maxVelocity =
-		Math.pow(self.gravity, 0.5) * Math.pow(self.bounds.y1, 0.5)
-
-	// the time to the top of the screen from the bottom.
-	const timeToApex = self.gravity / maxVelocity
-
-	// the velocity reached after falling from the top to the bottom of the screen.
-	const maximalFall = Math.pow((2 * self.gravity * self.bounds.y1), 0.5)
-
-	// the time to the apex and back down.
-	const totalTime = timeToApex + (maximalFall / self.gravity)
-
-	self.maxJumpSteps = always.whole(Math.ceil(totalTime))
 
 	return self
 } )()
@@ -429,6 +376,9 @@ var state = ( function () {
 		positionType:
 			'flying',
 
+		lastCloud:
+			-1,
+
 		jumps: {
 
 		}
@@ -438,12 +388,8 @@ var state = ( function () {
 	self.reactions = []
 	self.collisions = {}
 
-	self.score = {
-		value: 0,
-		x0: constants.score.x0,
-		y0: constants.score.y0
-	}
-	self.nextCloud = 0,
+	self.score = 0
+	self.nextCloud = 0
 	self.step = 0
 
 	return self
@@ -627,10 +573,13 @@ const react = ( function () {
 					const isAlignedX =
 						future.hero.x1 > future.cloud.x0 && future.hero.x0 < future.cloud.x1
 
-					const isAlignedY =
-						Math.abs(future.hero.y1 - future.cloud.y0) < 5
+					const isAlignedYTop =
+						Math.abs(future.hero.y1 - future.cloud.y0) < 6
 
-					if (isAlignedX && isAlignedY) {
+					const isAlignedYBottom =
+						Math.abs(future.hero.y0 - future.cloud.y1) < 6
+
+					if (isAlignedX && isAlignedYTop) {
 						return [{
 							position: motion.falling({
 								x0: future.hero.x0,
@@ -644,13 +593,39 @@ const react = ( function () {
 								ax: 0,
 								ay: 0,
 
+								init: Math.floor(t),
+							}),
+							step: Math.floor(t),
+							positionType: 'standing',
+							cloudId: cloud.cloudId
+						}]
+					} else if (isAlignedX && isAlignedYBottom) {
+
+						const reflected = hero.position(t, true)
+
+						return [{
+							position: motion.falling({
+								x0: future.hero.x0,
+								x1: future.hero.x1,
+								y0: cloud.position(t).y1,
+								y1: cloud.position(t).y1 + constants.hero.height,
+
+								vx: reflected.vx,
+								vy: -reflected.vy,
+
+								ax: reflected.ax,
+								ay: reflected.ay,
+
 								init: Math.floor(t)
 							}),
-							step: Math.floor(t)
+							step: Math.floor(t),
+							positionType: 'falling',
+							cloudId: cloud.cloudId
 						}]
-					} else {
-						return []
 					}
+
+					return []
+
 				})
 
 				// change!
@@ -665,7 +640,7 @@ const react = ( function () {
 				/*
 					The pre-calculated collision point has
 					been reached, so we need to swap out
-					the current player's motion function for
+					the current player's motion function forst
 					the pre-computed motion function.
 				*/
 
@@ -673,7 +648,12 @@ const react = ( function () {
 				var collision = state.collisions
 
 				hero.position = collision.position
-				hero.positionType = "standing"
+				hero.positionType = collision.positionType
+
+				if (hero.lastCloud !== collision.cloudId) {
+					state.score = state.score + 1
+					hero.lastCloud = collision.cloudId
+				}
 
 				state.collisions = []
 				state.hero = hero
@@ -719,7 +699,7 @@ const react = ( function () {
 						return state
 					}
 
-					const magnitude = time - hero.jumps.time
+					const holdDuration = time - hero.jumps.time
 
 					const heroCoords = hero.position(state.step)
 
@@ -729,17 +709,17 @@ const react = ( function () {
 					}
 
 					var dist = {
-						x: always.numeric(mouse.x - heroCoords.x1),
-						y: always.numeric(mouse.y - heroCoords.y1)
+						x: Math.abs(always.numeric(mouse.x - heroCoords.x1)),
+						y: -Math.abs(always.numeric(mouse.y - heroCoords.y1))
 					}
 
 					var angle = Math.atan(dist.y / dist.x)
 
 					var velocities = {
 						x:
-							magnitude * Math.cos(angle) / 30,
+							(holdDuration * Math.cos(angle)) / 30,
 						y:
-							magnitude * Math.sin(angle) / 30
+							(holdDuration * Math.sin(angle)) / 30
 					}
 
 					hero.position = motion.falling({
@@ -786,7 +766,7 @@ const currently = ( function () {
 			},
 		cloudIsReady:
 			state => {
-				return Math.random() > 0.99
+				return state.step % 100 === 0
 			},
 		offscreen:
 			state => {
@@ -814,7 +794,7 @@ const currently = ( function () {
 
 		colliding:
 			state => {
-				return !utils.isEmpty(state.collisions) && state.collisions.step === state.step
+				return !utils.isEmpty(state.collisions) && state.collisions.step <= state.step
 			},
 
 		isDead:
@@ -917,7 +897,7 @@ const draw = ( function () {
 				ctx.font = "30px Monospace"
 
 				ctx.fillText(
-					state.score.value + "",
+					state.score + "",
 					constants.score.x0, constants.score.y0)
 
 			},
@@ -940,11 +920,11 @@ const draw = ( function () {
 
 				ctx.fillStyle = constants.colours.white
 
-				value = state.score.value
+				value = state.score
 
 				ctx.fillText(
 					"You ran out of cluck. " +
-					"Score: " + state.score.value,
+					"Score: " + state.score,
 					constants.score.x0, 265)
 			}
 	}
@@ -998,9 +978,7 @@ const draw = ( function () {
 	upon('mouseup', event => {
 
 		return react.jump(
-			event.pageX,
-			event.pageY,
-			utils.getTime())
+			event.pageX, event.pageY, utils.getTime())
 	})
 
 } )()
