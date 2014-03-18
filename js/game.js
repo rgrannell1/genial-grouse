@@ -269,8 +269,8 @@ const motion = ( function () {
 					x0: always.numeric(self.x0 + self.vx*step),
 					x1: always.numeric(self.x1 + self.vx*step),
 
-					y0: always.numeric(self.y0 + 7 * Math.sin(step / 10)),
-					y1: always.numeric(self.y1 + 7 * Math.sin(step / 10))
+					y0: always.numeric(self.y0 + 7 * Math.sin(step / 30)),
+					y1: always.numeric(self.y1 + 7 * Math.sin(step / 30))
 				}
 			}
 		}
@@ -570,8 +570,43 @@ const react = ( function () {
 
 					// if, when the y axis intersects, the x intersects
 
+
+					const xRegion = ( function () {
+						/*
+							is the bird?
+							1, not touching and to the left
+							2, touching and to the left,
+							3, intersecting
+							4, toughing and to the right
+							5, not touching and to the right.
+						*/
+
+
+
+					} )()
+
+
+					const yRegion = ( function () {
+						/*
+							is the bird?
+							1, not touching and above
+							2, touching and above,
+							3, intersecting
+							4, toughing and below
+							5, not touching and below.
+						*/
+
+					} )()
+
+
 					const isAlignedX =
 						future.hero.x1 > future.cloud.x0 && future.hero.x0 < future.cloud.x1
+
+					const isAlignedXLeft =
+						Math.abs(future.hero.x1 - future.cloud.x0) < 2
+
+					const isAlignedYMiddle =
+						future.hero.y1 > future.cloud.y0 && future.hero.y0 < future.cloud.y1
 
 					const isAlignedYTop =
 						Math.abs(future.hero.y1 - future.cloud.y0) < 6
@@ -622,6 +657,8 @@ const react = ( function () {
 							positionType: 'falling',
 							cloudId: cloud.cloudId
 						}]
+					} else if (isAlignedXLeft && isAlignedYMiddle) {
+						console.log("hit")
 					}
 
 					return []
@@ -886,9 +923,35 @@ const draw = ( function () {
 					ctx.fillStyle = constants.colours.white
 				}
 
-				const coords = hero.position(state.step)
+				const coords  = hero.position(state.step)
+				const coords1 = hero.position(state.step + 0.01)
 
-				ctx.drawImage(birdy, coords.x0, coords.y0)
+				const dist = {
+					x: coords.x0 - coords1.x0,
+					y: coords.y0 - coords1.y0
+				}
+
+				if (dist.y === 0) {
+					var angle = 0
+				} else {
+					var angle = -Math.atan2(dist.x, dist.y) + (270) * 3.14/180
+				}
+
+				//
+
+				coordsPrime = {
+					x0:  Math.cos(angle) * coords.x0 + Math.sin(angle) * coords.y0,
+					y0: -Math.sin(angle) * coords.x0 + Math.cos(angle) * coords.y0
+				}
+
+				ctx.save();
+
+				ctx.rotate(angle)
+
+				ctx.drawImage(birdy, coordsPrime.x0, coordsPrime.y0)
+
+				ctx.restore();
+
 			},
 		score:
 			state => {
@@ -904,7 +967,7 @@ const draw = ( function () {
 		deathScreen:
 			state => {
 
-				ctx.fillstyle = 'rgba(0,0,0,0.6)'
+				ctx.fillStyle = 'rgba(0,0,0,0.6)'
 
 				ctx.fillRect(
 					constants.bounds.x0, constants.bounds.y0,
