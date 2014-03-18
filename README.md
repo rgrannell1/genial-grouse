@@ -1,8 +1,11 @@
+Genial Grouse
+=============
 
-# Genial Grouse (pre-release)
+Genial Grouse is yet-another bird game. I made it as a technical exercice.
 
-Genial Growse is a dumb JavaScript game written as a technical excercise
+# 1 Installation
 
-# 1 Compatability
+# 2 Compatability
 
-Genial grouse is not cross-browser; it only works in Firefox >= 27.
+Genial Grouse is not very cross-compatibile. It currently will only work on Firefox >= 27, due to
+heavy use of Ecmascript 6 features.
