@@ -493,8 +493,6 @@ const react = ( function () {
 
 				} )() )
 
-				state.cloudTimer = utils.timer(constants.cloudInterval)
-
 				state.nextCloud = always.whole(state.nextCloud + 1)
 
 				return state
@@ -610,8 +608,6 @@ const react = ( function () {
 
 					const times = utils.solve(comps.ay, comps.vy, comps.c)
 
-					console.log(times)
-
 					if (times.length === 0) {
 						return []
 					}
@@ -632,7 +628,7 @@ const react = ( function () {
 						future.hero.x1 > future.cloud.x0 && future.hero.x0 < future.cloud.x1
 
 					const isAlignedY =
-						future.hero.y1 >= future.cloud.y0 && future.hero.y1 > future.cloud.y0 - 5
+						Math.abs(future.hero.y1 - future.cloud.y0) < 3
 
 					if (isAlignedX && isAlignedY) {
 						return [{
@@ -777,7 +773,7 @@ const currently = ( function () {
 			},
 		cloudIsReady:
 			state => {
-				return state.cloudTimer()
+				return Math.random() > 0.99
 			},
 		offscreen:
 			state => {
