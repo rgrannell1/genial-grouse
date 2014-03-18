@@ -58,7 +58,7 @@ const constants = ( function () {
 
 	self.step = 1
 
-	self.dx = 3
+	self.dx = 2
 	self.birdDx = 0.75
 	self.epsilon = 0.000001
 
@@ -289,7 +289,8 @@ const utils = ( function () {
 						always.numeric(
 							(-b + Math.sqrt(inner)) / denominator),
 						always.numeric(
-							(-b - Math.sqrt(inner)) / denominator)]
+							(-b - Math.sqrt(inner)) / denominator)
+					]
 				}
 			}]
 		)
@@ -473,10 +474,19 @@ const react = ( function () {
 					const y1 = y0 + constants.cloud.height
 
 					return {
-						position: motion.cloud({
-							init: always.whole(state.step),
+						position: motion.falling({
+							x0: constants.bounds.x1,
+							x1: constants.bounds.x1 + constants.cloud.width,
 							y0: always.numeric(y0),
-							y1: always.numeric(y1)
+							y1: always.numeric(y1),
+
+							vx: -constants.dx,
+							vy: 0,
+
+							ax: 0,
+							ay: 0,
+
+							init: always.whole(state.step)
 						}),
 						cloudId: always.whole(state.nextCloud)
 					}
@@ -583,8 +593,7 @@ const react = ( function () {
 					return state
 				}
 
-				const futureCollisions =
-				utils.flatmap(state.clouds, function (cloud) {
+				const futureCollisions = utils.flatmap(state.clouds, cloud => {
 					/*
 						for each cloud check at what time
 						the player shares its y position with the cloud.
@@ -592,7 +601,7 @@ const react = ( function () {
 
 					var comps = {
 						ay:
-							always.numeric(constants.gravity),
+							-always.numeric(constants.gravity),
 						vy:
 							always.numeric(hero.position(0, true).vy),
 						c:
@@ -601,38 +610,57 @@ const react = ( function () {
 
 					const times = utils.solve(comps.ay, comps.vy, comps.c)
 
+					console.log(times)
+
 					if (times.length === 0) {
 						return []
 					}
 
 					// the positive solution is the future intersection point.
-					const t = always.numeric(Math.max.apply(Math, times))
+					const t = always.numeric(Math.max.apply(Math, times)) + state.step
 
-					// sort out the solutions for t
+					// sort out the solutions for the
 
 					var future = {
 						hero: hero.position(t),
 						cloud: cloud.position(t)
 					}
 
-					return [{
-						position: motion.standing({
-							x0: future.hero.x0,
-							x1: future.hero.x1,
-							y0: cloud.position(t).y0 - constants.hero.height,
-							y1: cloud.position(t).y0,
+					// if, when the y axis intersects, the x intersects
 
-							vx: constants.dx,
-							vy: 0,
+					const isAlignedX =
+						future.hero.x1 > future.cloud.x0 && future.hero.x0 < future.cloud.x1
 
-							init: Math.floor(t)
-						}),
-						step: Math.floor(t)
-					}]
+					const isAlignedY =
+						future.hero.y1 >= future.cloud.y0 && future.hero.y1 > future.cloud.y0 - 5
+
+					if (isAlignedX && isAlignedY) {
+						return [{
+							position: motion.falling({
+								x0: future.hero.x0,
+								x1: future.hero.x1,
+								y0: cloud.position(t).y0 - constants.hero.height,
+								y1: cloud.position(t).y0,
+
+								vx: -constants.dx,
+								vy: 0,
+
+								ax: 0,
+								ay: 0,
+
+								init: Math.floor(t)
+							}),
+							step: Math.floor(t)
+						}]
+					} else {
+						return []
+					}
 				})
 
 				// change!
-				state.collisions = futureCollisions[0]
+				if (futureCollisions.length > 0) {
+					state.collisions = futureCollisions[0]
+				}
 
 				return state
 			},
@@ -777,7 +805,7 @@ const currently = ( function () {
 
 		colliding:
 			state => {
-				return !utils.isEmpty(state.collisions.length) && state.collisions.step > state.step
+				return !utils.isEmpty(state.collisions) && state.collisions.step === state.step
 			},
 
 		isDead:
@@ -816,8 +844,7 @@ var update = ( function () {
 
 		when(currently.noFutureCollisions, react.enqueueCollisions)
 
-		//when(currently.colliding, react.alterCourse)
-		when(x => !utils.isEmpty(x.collisions), react.alterCourse)
+		when(currently.colliding, react.alterCourse)
 
 		/*
 			consume every event in the queue, in order.
