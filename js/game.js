@@ -543,11 +543,13 @@ const react = ( function () {
 
 				*/
 
+
 				var hero = state.hero
 
 				if (hero.positionType !== 'falling') {
 					return state
 				}
+				console.log('Queueing!')
 
 				const futureCollisions = utils.flatmap(state.clouds, cloud => {
 					/*
@@ -763,9 +765,9 @@ const react = ( function () {
 
 					var velocities = {
 						x:
-							(holdDuration * Math.cos(angle)) / 30,
+							Math.min((holdDuration * Math.cos(angle)) / 30, 11),
 						y:
-							(holdDuration * Math.sin(angle)) / 30
+							Math.min((holdDuration * Math.sin(angle)) / 30, 11)
 					}
 
 					hero.position = motion.falling({
@@ -958,7 +960,7 @@ const draw = ( function () {
 					ctx.fillStyle = constants.colours.white
 				}
 
-				const coords  = hero.position(state.step)
+				const coords = hero.position(state.step)
 
 				if (hero.positionType === "standing") {
 
@@ -985,14 +987,19 @@ const draw = ( function () {
 					y0: -Math.sin(angle) * coords.x0 + Math.cos(angle) * coords.y0
 				}
 
+
 				ctx.save();
 
 				ctx.rotate(angle)
 
 				ctx.drawImage(birdy, coordsPrime.x0, coordsPrime.y0)
-
 				ctx.restore();
 
+				ctx.fillStyle = 'rgba(0,0,0,0.3)'
+				ctx.fillRect(
+					coords.x0, coords.y0,
+					constants.hero.width, constants.hero.height
+				)
 			},
 		score:
 			state => {
