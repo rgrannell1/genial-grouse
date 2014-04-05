@@ -114,6 +114,95 @@ const utils = ( function () {
 
 
 
+const solver = ( function () {
+
+	const match = (triples) => {
+
+		const _ = undefined
+		const args = Array.prototype.slice.call(arguments)
+
+		for (triple of args) {
+
+			const values   = triple[0]
+			const pattern  = triple[1]
+			const response = triple[2]
+
+			var allMatches = true
+
+			for (var ith = 0; ith < values.length; ith++) {
+				allMatches = allMatches && (pattern[ith] === _ || values[ith] === pattern[ith])
+			}
+
+			if (allMatches) {
+				return response
+			}
+		}
+	}
+
+	const solve = (a, b, c) => {
+
+		const _ = undefined
+
+		const func = match(
+			[[a, b, c], [0, 0, _], (a, b, c) => {
+				return []
+			}],
+
+			[[a, b, c], [0, _, _], (a, b, c) => {
+				// linear-equation.
+
+				return [-c / b]
+			}],
+
+			[[a, b, c], [_, 0, 0], (a, b, c) => {
+				// only the second-order term.
+
+				return [0]
+			}],
+
+			[[a, b, c], [_, _, _], (a, b, c) => {
+				// the quadratic formula; the most general case.
+
+				const inner = Math.abs(b * b - 4 * a * c)
+				const denominator = 2*a
+
+				if (inner < 0) {
+					return []
+				} else {
+
+					const lower = (-b + Math.sqrt(inner)) / denominator
+					const upper = (-b - Math.sqrt(inner)) / denominator
+
+					return [lower, upper]
+				}
+			}]
+		)
+
+		return func(a, b, c)
+	}
+
+	/* ----------------- Unit Tests ----------------- */
+
+	console.assert(solve(0, 0, 0).length === 0)
+	console.assert(solve(0, 0, 9).length === 0)
+	console.assert(solve(0, 2, -2)[0] === 1)
+
+	console.assert(solve(1, 4, 3)[0] === -1)
+	console.assert(solve(1, 4, 3)[1] === -3)
+
+	return solve
+
+} )()
+
+
+
+
+
+
+
+
+
+
 /*
 	motion
 
@@ -244,15 +333,12 @@ state = ( function () {
 	self.collisions = {}
 
 	self.score      = 0
-	self.nextScore  = 0
 	self.nextCloud  = 0
 	self.currStep   = 1
 
 	return self
 
 } )()
-
-
 
 
 
@@ -325,9 +411,6 @@ const react = ( function () {
 					vx: constants.pixelDx,
 					vy: 0,
 
-					ax: 0,
-					ay: 0,
-
 					init: currStep
 				}),
 				cloudId: nextCloud
@@ -385,6 +468,7 @@ const react = ( function () {
 					vx: constants.flyingBirdDx,
 					vy: ySlope,
 
+					ax: 0,
 					ay: constants.gravity,
 
 					init: currStep
@@ -398,41 +482,49 @@ const react = ( function () {
 		}
 	)
 
-	self.enqueueCollisions = state => {
-			/*
-			Every moving object in the game has a trajectory function.
-			Because of this collisions can easily be found before they happen;
-			the player trajectory function and each cloud trajectory function can
-			be used to checked to see if they intersect at any point.
+	self.enqueueCollisions = makeReaction(
+		['hero', 'clouds',  'currStep'], [],
+		(hero, clouds, currStep) => {
+				/*
+				Every moving object in the game has a trajectory function.
+				Because of this collisions can easily be found before they happen;
+				the player trajectory function and each cloud trajectory function can
+				be used to checked to see if they intersect at any point.
 
-			If an interection between the player and cloud is found in the future,
-			then the player either rebounds (1.), lands on the platform (2.), or
-
-
-			1, Rebounds. The x component of the birds velocity is reversed.
-			2, Lands. The y component of the acceleration and velocities are set
-				to zero, and the x component is set to the scroll speed dx.
-			3, Falls into oblivion. The trajectory is kept.
-			*/
-
-			/*
-				for each cloud:
-					find the t' that the trajectory shares the same y position as the cloud
-					using the quadratic equation.
-
-					If t' isnt in the right range next.
-
-					get the [x0, x1, y0, y1 of the function at this time.
-					if
+				If an interection between the player and cloud is found in the future,
+				then the player either rebounds (1.), lands on the platform (2.), or
 
 
-					.5 at ^2 + vt- constant = 0
+				1, Rebounds. The x component of the birds velocity is reversed.
+				2, Lands. The y component of the acceleration and velocities are set
+					to zero, and the x component is set to the scroll speed dx.
+				3, Falls into oblivion. The trajectory is kept.
+				*/
+
+				/*
+					for each cloud:
+						find the t' that the trajectory shares the same y position as the cloud
+						using the quadratic equation.
+
+						If t' isnt in the right range next.
+
+						get the [x0, x1, y0, y1 of the function at this time.
+						if
 
 
-			*/
+						.5 at ^2 + vt- constant = 0
 
-		return state
-	}
+
+				*/
+
+			const motionComponents = hero.position(0, true)
+			const intersectTimes   = solver(motionComponents.ay, motionComponents.vy, 1000)
+
+			return {
+
+			}
+		}
+	)
 
 	self.alterCourse = makeReaction(
 		['hero', 'collisions', 'score'], ['hero', 'collisions', 'score'],
@@ -601,7 +693,7 @@ const currently = ( function () {
 			},
 		cloudIsReady:
 			state => {
-				return state.currStep % 100 === 0
+				return state.currStep % (150) === 0
 			},
 		offscreen:
 			state => {
@@ -645,48 +737,37 @@ const currently = ( function () {
 } )()
 
 /*
-	keepInvariants
+	check
 
 	Ensure that certain properties of
 	the state are invariant for each step of the
 	game.
 */
-const keepInvariants = ( function () {
-
-	const checkThat = (predicate, type) => {
-		return val => {
-			if (predicate(val)) {
-				return val
-			} else {
-				throw new TypeError(
-					"The contract always." + type + " was broken with the value " + val + ".\n" +
-					"Calling function was " + arguments.callee.caller.toString() + ".\n")
-			}
-		}
-	}
+const check = ( function () {
 
 	const is = {
 		whole:
-			checkThat(val => {
+			val => {
 				return val === val && val % 1 === 0
-			}, 'whole'),
+			},
 		number:
-			checkThat(val => {
+			val => {
 				return val === val
-			}, 'numeric'),
+			},
 		bool:
-			checkThat(val => {
+			val => {
 				return val === false || val === true
-			}, 'boolean'),
+			},
 		func:
-			checkThat(val => {
+			val => {
 				return val && typeof val === 'function'
-			}, 'function')
+			}
 	}
 
-	const check = (gets, property, onErr) => {
 
-		return state => {
+	return state => {
+
+		const check = (gets, property, onErr) => {
 
 			const visible = gets.map(prop => state[prop])
 			const hasProp = property.apply(null, visible)
@@ -695,11 +776,15 @@ const keepInvariants = ( function () {
 				throw onErr.apply(null, visible)
 			}
 		}
-	}
 
-	return state => {
+		check(['score'], is.number,
+			score => "score not number.")
 
-		check(['score'], is.number, score => "score ")
+		check(['nextCloud'], is.number,
+			score => "nextCloud not number.")
+
+		check(['currStep'], is.number,
+			score => "currStep not number.")
 
 	}
 
@@ -836,12 +921,6 @@ const draw = ( function () {
 
 		const birdy = document.getElementById("bird-asset")
 
-		if (hero.jump.time) {
-			ctx.fillStyle = constants.colours.black
-		} else {
-			ctx.fillStyle = constants.colours.white
-		}
-
 		const coords = hero.position(currStep)
 
 		if (hero.locomotion === "standing") {
@@ -860,17 +939,17 @@ const draw = ( function () {
 			if (dist.y === 0) {
 				var angle = 0
 			} else {
-				var angle = -Math.atan2(dist.x, dist.y) + (270) * 3.14/180
+				var angle = -Math.atan2(dist.x, dist.y) + (270) * 3.14 / 180
 			}
 		}
 
-		coordsPrime = {
+		var coordsPrime = {
 			x0:  Math.cos(angle) * coords.x0 + Math.sin(angle) * coords.y0,
 			y0: -Math.sin(angle) * coords.x0 + Math.cos(angle) * coords.y0
 		}
 
-		coordsPrime.x0 += 0
-		coordsPrime.y0 -= 0
+		coordsPrime.x0 -= 16
+		coordsPrime.y0 -= 16
 
 		ctx.save();
 
@@ -884,6 +963,7 @@ const draw = ( function () {
 			coords.x0, coords.y0,
 			constants.heroWidth, constants.heroHeight
 		)
+
 	})
 
 	return state => {
@@ -971,7 +1051,7 @@ const draw = ( function () {
 		if (!state.hero.isDead) {
 
 			state = update(state)
-			keepInvariants(state)
+			check(state)
 			draw(state)
 
 		} else {
