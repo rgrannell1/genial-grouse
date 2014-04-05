@@ -631,7 +631,7 @@ const react = ( function () {
 					})
 				}
 
-
+				clog(collision.time)
 
 				return {
 					collisions: collision
@@ -827,7 +827,7 @@ const currently = ( function () {
 	self.noFutureCollisions = makeInspector(
 		['collisions', 'hero', 'clouds'],
 		(collisions, hero, clouds) => {
-			return utils.isEmpty(collisions.length) && clouds.length > 0
+			return utils.isEmpty(collisions) && clouds.length > 0
 		}
 	)
 
@@ -861,7 +861,7 @@ const currently = ( function () {
 	self.colliding = makeInspector(
 		['collisions', 'currStep'],
 		(collisions, currStep) => {
-			return !utils.isEmpty(collisions) && collisions.time === currStep
+			return !utils.isEmpty(collisions) && collisions.time < currStep
 		}
 	)
 
@@ -1035,13 +1035,20 @@ const draw = ( function () {
 		})
 	})
 
-	render.score = makeRenderer(['score'], score => {
+	render.score = makeRenderer(['score', 'currStep'], (score, currStep) => {
 
 		ctx.font = "30px Monospace"
 
 		ctx.fillText(
-			state.score + "",
+			score + "",
 			constants.score.x, constants.score.y)
+
+		if (constants.debug) {
+			ctx.fillText(
+				currStep + "",
+				constants.score.x + 50, constants.score.y)
+		}
+
 	})
 
 	render.deathScreen = makeRenderer(['score'], score => {
