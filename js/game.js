@@ -113,6 +113,11 @@ const utils = ( function () {
 
 
 
+/*
+	solver
+
+	this module solves quadratic and linear equations.
+*/
 
 const solver = ( function () {
 
@@ -208,19 +213,18 @@ const solver = ( function () {
 
 	closed function of time, that describe the position
 */
-
 const motion = ( function () {
 
 	const flying  = self => {
 		return (step, reflect = false) => {
 
+			self.vx   = self.vx   || 0
+			self.vy   = self.vy   || 0
+			self.init = self.init || 0
+
 			if (reflect) {
 				return self
 			}
-
-			self.vx   = self.vx
-			self.vy   = self.vy
-			self.init = self.init
 
 			const dt = step - self.init
 			const dy = 7 * Math.sin(step / 30)
@@ -242,17 +246,15 @@ const motion = ( function () {
 	const falling = self => {
 		return (step, reflect = false) => {
 
-			if (reflect) {
-				return self
-			}
-
-			// add default arguments.
-
 			self.vx = self.vx || 0
 			self.vy = self.vy || 0
 
 			self.ax = self.ax || 0
 			self.ay = self.ay || 0
+
+			if (reflect) {
+				return self
+			}
 
 			const dt = step - self.init
 
@@ -387,7 +389,6 @@ const react = ( function () {
 
 	var self = {}
 
-
 	self.addClouds = makeReaction(
 		['clouds', 'currStep', 'nextCloud'], ['clouds', 'nextCloud'],
 		(clouds, currStep, nextCloud) => {
@@ -409,7 +410,6 @@ const react = ( function () {
 					y1: y1,
 
 					vx: constants.pixelDx,
-					vy: 0,
 
 					init: currStep
 				}),
@@ -468,7 +468,6 @@ const react = ( function () {
 					vx: constants.flyingBirdDx,
 					vy: ySlope,
 
-					ax: 0,
 					ay: constants.gravity,
 
 					init: currStep
@@ -483,7 +482,7 @@ const react = ( function () {
 	)
 
 	self.enqueueCollisions = makeReaction(
-		['hero', 'clouds',  'currStep'], [],
+		['hero', 'clouds',  'currStep'], ['hero', 'collisions'],
 		(hero, clouds, currStep) => {
 				/*
 				Every moving object in the game has a trajectory function.
@@ -518,10 +517,31 @@ const react = ( function () {
 				*/
 
 			const motionComponents = hero.position(0, true)
-			const intersectTimes   = solver(motionComponents.ay, motionComponents.vy, 1000)
+			var intersectTimes     = solver(motionComponents.ay, motionComponents.vy, 1000)
+
+			intersectTimes[0] += currStep
+			intersectTimes[1] += currStep
+
+			const collisionTime = intersectTimes.reduce(Math.max)
+			const futureCoords  = hero.position(collisionTime)
+
+			hero.jump = {
+				time: collisionTime,
+				position: motion.falling({
+
+					x0: futureCoords.x0,
+					x1: futureCoords.x1,
+					y0: futureCoords.y0,
+					y1: futureCoords.y1,
+
+					vx: constants.pixelDx,
+
+					init: currStep
+				})
+			}
 
 			return {
-
+				hero: hero
 			}
 		}
 	)
@@ -620,7 +640,6 @@ const react = ( function () {
 					vx: velocities.x,
 					vy: velocities.y,
 
-					ax: 0,
 					ay: constants.gravity,
 
 					init: currStep
@@ -673,6 +692,7 @@ const react = ( function () {
 
 
 
+
 /*
 	currently
 
@@ -682,59 +702,81 @@ const react = ( function () {
 */
 const currently = ( function () {
 
-	return {
-		isCloudy:
-			state => {
-				return state.clouds.length > 0
-			},
-		noFutureCollisions:
-			state => {
-				return utils.isEmpty(state.collisions)
-			},
-		cloudIsReady:
-			state => {
-				return state.currStep % (150) === 0
-			},
-		offscreen:
-			state => {
+	var self = {}
 
-				const coords = state.hero.position( state.currStep )
+	const makeInspector = (gets, inspector) => {
+		/*
+		creates a reaction function that accesses and alters part
+		of the state.
+		*/
 
-				const isOffscreen = coords.y1 > constants.bound.y1 ||
-					coords.x0 < constants.bound.x0 ||
-					coords.x1 > constants.bound.x1
+		return state => {
 
-				return isOffscreen
-			},
-		flying:
-			state => {
-				return state.hero.locomotion === 'flying'
-			},
-		falling:
-			state => {
-				return state.hero.locomotion === 'falling'
-			},
-		notFalling:
-			state => {
-				return state.hero.locomotion !== 'falling'
-			},
-
-		colliding:
-			state => {
-				return !utils.isEmpty(state.collisions) && state.collisions.step <= state.currStep
-			},
-
-		isDead:
-			state => {
-				return state.hero.isDead
-			},
-		isAlive:
-			state => {
-				return !state.hero.isDead
-			}
+			const visible = gets.map(prop => state[prop])
+			return inspector.apply(null, visible)
+		}
 	}
 
+	self.isCloudy = makeInspector(['clouds'],
+		clouds => clouds.length > 0)
+
+	self.noFutureCollisions = makeInspector(
+		['collisions', 'hero'],
+		(collisions, hero) => {
+			return collisions.length === 0
+		}
+	)
+
+	self.cloudIsReady = makeInspector(
+		['currStep'],
+		currStep => currStep % 150 === 0)
+
+	self.offscreen = makeInspector(
+		['hero', 'currStep'],
+		(hero, currStep) => {
+
+			const coords = hero.position(currStep)
+
+			const isOffscreen = coords.y1 > constants.bound.y1 ||
+				coords.x0 < constants.bound.x0 ||
+				coords.x1 > constants.bound.x1
+
+			return isOffscreen
+		}
+	)
+
+	self.flying = makeInspector(
+		['hero'], hero => hero.locomotion === 'flying')
+
+	self.falling = makeInspector(
+		['hero'], hero => hero.locomotion === 'falling')
+
+	self.notFalling = makeInspector(
+		['hero'], hero => hero.locomotion !== 'falling')
+
+	self.colliding = makeInspector(
+		['hero'], hero => !utils.isEmpty(hero.jump))
+
+	self.isDead = makeInspector(
+		['hero'], hero => hero.isDead)
+
+	self.isAlive = makeInspector(
+		['hero'], hero => !hero.isAlive)
+
+	return self
+
 } )()
+
+
+
+
+
+
+
+
+
+
+
 
 /*
 	check
@@ -918,6 +960,28 @@ const draw = ( function () {
 	})
 
 	render.hero = makeRenderer(['hero', 'currStep'], (hero, currStep) => {
+
+
+
+
+
+
+
+
+		if (!utils.isEmpty(hero.jump)) {
+			console.log(hero.jump)
+		}
+
+
+
+
+
+
+
+
+
+
+
 
 		const birdy = document.getElementById("bird-asset")
 
