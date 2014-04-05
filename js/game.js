@@ -220,6 +220,10 @@ const motion = ( function () {
 
 			self.vx   = self.vx   || 0
 			self.vy   = self.vy   || 0
+
+			self.ax = self.ax || 0
+			self.ay = self.ay || 0
+
 			self.init = self.init || 0
 
 			if (reflect) {
@@ -512,7 +516,7 @@ const react = ( function () {
 
 
 	*/
-	self.enqueueCollisions = ( function () {
+	self.scheduleCollision = ( function () {
 		/*
 		Every moving object in the game has a trajectory function.
 		Because of this collisions can easily be found before they happen;
@@ -541,12 +545,63 @@ const react = ( function () {
 
 
 				.5 at ^2 + vt- constant = 0
-
-
 		*/
 
-		const findIntersectTimes = (motionComponents, clouds) => {
+		const firstCollision = (comps, currStep, clouds) => {
+			/*
+			get the time of the first collisions, the cloud
+			id we are collising with, and the face we are colliding with.
+			*/
 
+			const collisionsWith = prop => {
+				/*
+				get the collisions between the hero and
+				with a particular surface of a cloud.
+				*/
+
+				return cloud => {
+
+					const cloudCoords = cloud.position(0, true)
+					const time =
+						solver(comps.ay, comps.vy, cloudCoords[prop])
+						.map(elem => elem + currStep)
+						.filter(elem => elem > currStep)
+						.reduce(Math.min, Infinity)
+
+					if (time === Infinity) {
+						// no future collisions.
+						return {}
+					} else {
+
+						return {
+							cloudId: cloud.cloudId,
+							time: time,
+							prop: prop
+						}
+					}
+				}
+			}
+
+			clog( clouds.map(collisionsWith('y0')) )
+
+			const collisions =
+				clouds.map(         collisionsWith('y0'))
+				.concat( clouds.map(collisionsWith('y1')) )
+				.filter(elem => !utils.isEmpty(elem))
+
+			const collision = collisions.reduce((prevMin, elem) => {
+				if (elem.time < prevMin.time) {
+					return elem
+				} else {
+					return prevMin
+				}
+			}, {
+				time: Infinity,
+				cloudId: NaN,
+				prop: 'Na'
+			})
+
+			return collision
 		}
 
 		return makeReaction(
@@ -555,38 +610,32 @@ const react = ( function () {
 
 				const motionComponents = hero.position(0, true)
 
-				var intersectTimes = findIntersectTimes(motionComponents, clouds)
+				var collision = firstCollision(motionComponents, currStep, clouds)
 
-				var intersectTimes     = solver(motionComponents.ay, motionComponents.vy, 1000)
-
-				intersectTimes[0] += currStep
-				intersectTimes[1] += currStep
-
-				const collisionTime = intersectTimes.reduce(Math.max)
-				const futureCoords  = hero.position(collisionTime)
-
-				const collision = {
-					time: collisionTime,
-					position: motion.falling({
-
-						x0: futureCoords.x0,
-						x1: futureCoords.x1,
-						y0: futureCoords.y0,
-						y1: futureCoords.y1,
-
-						vx: constants.pixelDx,
-
-						init: currStep
-					})
+				if (collision.time === Infinity) {
+					return {
+						collisions: collision
+					}
 				}
 
-				return {
-					collisions: collision
-				}
+				clog(1)
+
+				const futureCoords = hero.position(collision.time)
+
+
 			}
 		)
 
 	} )()
+
+
+
+
+
+
+
+
+
 
 	self.alterCourse = makeReaction(
 		['hero', 'collisions', 'score'], ['hero', 'collisions', 'score'],
@@ -763,9 +812,9 @@ const currently = ( function () {
 		clouds => clouds.length > 0)
 
 	self.noFutureCollisions = makeInspector(
-		['collisions', 'hero'],
-		(collisions, hero) => {
-			return collisions.length === 0
+		['collisions', 'hero', 'clouds'],
+		(collisions, hero, clouds) => {
+			return utils.isEmpty(collisions.length) && clouds.length > 0
 		}
 	)
 
@@ -907,7 +956,7 @@ var update = ( function () {
 
 		when(currently.offscreen, react.endGame)
 
-		when(currently.noFutureCollisions, react.enqueueCollisions)
+		when(currently.noFutureCollisions, react.scheduleCollision)
 
 		when(currently.colliding, react.alterCourse)
 
