@@ -547,62 +547,65 @@ const react = ( function () {
 				.5 at ^2 + vt- constant = 0
 		*/
 
+		const cloudCollision = surface => {
+			/*
+			get the collisions .
+			*/
+
+			surface === 'upper' ? var compy = 'y0': var compy = 'y1'
+
+			return cloud => {
+
+				// the y components of the cloud are constant over time.
+				const cloudCoords = cloud.position(0, true)
+				const surfacey    = cloudCoords[compy]
+
+				const time =
+					solver(comps.ay, comps.vy, surfacey)
+					.map(   elem => elem + currStep)
+					.filter(elem => elem > currStep)
+					.reduce(Math.min, Infinity)
+
+				if (time === Infinity) {
+					// no future collisions.
+					return {}
+				} else {
+
+					return {
+						cloudId: cloud.cloudId,
+						time: time,
+						prop: prop
+					}
+				}
+			}
+		}
+
 		const firstCollision = (comps, currStep, clouds) => {
 			/*
 			get the time of the first collisions, the cloud
 			id we are collising with, and the face we are colliding with.
 			*/
 
-			const collisionsWith = prop => {
-				/*
-				get the collisions between the hero and
-				with a particular surface of a cloud.
-				*/
-
-				return cloud => {
-
-					const cloudCoords = cloud.position(0, true)
-					const time =
-						solver(comps.ay, comps.vy, cloudCoords[prop])
-						.map(elem => elem + currStep)
-						.filter(elem => elem > currStep)
-						.reduce(Math.min, Infinity)
-
-					if (time === Infinity) {
-						// no future collisions.
-						return {}
-					} else {
-
-						return {
-							cloudId: cloud.cloudId,
-							time: time,
-							prop: prop
-						}
-					}
-				}
-			}
-
-			clog( clouds.map(collisionsWith('y0')) )
-
 			const collisions =
-				clouds.map(         collisionsWith('y0'))
-				.concat( clouds.map(collisionsWith('y1')) )
+				clouds.map(         cloudCollision('y0'))
+				.concat( clouds.map(cloudCollision('y1')) )
 				.filter(elem => !utils.isEmpty(elem))
 
-			const collision = collisions.reduce((prevMin, elem) => {
-				if (elem.time < prevMin.time) {
-					return elem
-				} else {
-					return prevMin
-				}
-			}, {
-				time: Infinity,
-				cloudId: NaN,
-				prop: 'Na'
-			})
+			const collision = collisions#
+				.reduce((prevMin, elem) => {
+					if (elem.time < prevMin.time) {
+						return elem
+					} else {
+						return prevMin
+					}
+				}, {time: Infinity})
 
 			return collision
 		}
+
+		/*
+		The final scheduleCollision function.
+		*/
 
 		return makeReaction(
 			['hero', 'clouds',  'currStep'], ['collisions'],
@@ -618,11 +621,7 @@ const react = ( function () {
 					}
 				}
 
-				clog(1)
-
 				const futureCoords = hero.position(collision.time)
-
-
 			}
 		)
 
