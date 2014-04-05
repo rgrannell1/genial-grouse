@@ -18,56 +18,6 @@ const clog = console.log
 
 
 
-/*
-	Contract functions.
-
-	Return a value if it meets criteria, otherwise throws an error.
-*/
-
-const always = ( function () {
-
-	const checkThat = (predicate, type) => {
-		return val => {
-			if (predicate(val)) {
-				return val
-			} else {
-				throw new TypeError(
-					"The contract always." + type + " was broken with the value " + val + ".\n" +
-					"Calling function was " + arguments.callee.caller.toString() + ".\n")
-			}
-		}
-	}
-
-	return {
-		'whole':
-			checkThat(val => {
-				return val === val && val % 1 === 0
-			}, 'whole'),
-		'numeric':
-			checkThat(val => {
-				return val === val
-			}, 'numeric'),
-		'boolean':
-			checkThat(val => {
-				return val === false || val === true
-			}, 'boolean'),
-		'func':
-			checkThat(val => {
-				return val && typeof val === 'function'
-			}, 'function')
-	}
-
-} )()
-
-
-
-
-
-
-
-
-
-
 const constants = ( function () {
 
 	var self = {}
@@ -142,17 +92,6 @@ const utils = ( function () {
 
 	self.randBetween = (lower, upper) => {
 		return (Math.random() * (upper-lower)) + lower
-	}
-
-	self.flatmap = (coll, fn) => {
-
-		var out = []
-
-		for (var ith = 0; ith < coll.length; ith++) {
-			out = out.concat( fn(coll[ith]) )
-		}
-
-		return out
 	}
 
 	self.asCanvasMouseCoords =
@@ -714,6 +653,37 @@ const currently = ( function () {
 */
 const keepInvariants = ( function () {
 
+	const checkThat = (predicate, type) => {
+		return val => {
+			if (predicate(val)) {
+				return val
+			} else {
+				throw new TypeError(
+					"The contract always." + type + " was broken with the value " + val + ".\n" +
+					"Calling function was " + arguments.callee.caller.toString() + ".\n")
+			}
+		}
+	}
+
+	const is = {
+		whole:
+			checkThat(val => {
+				return val === val && val % 1 === 0
+			}, 'whole'),
+		number:
+			checkThat(val => {
+				return val === val
+			}, 'numeric'),
+		bool:
+			checkThat(val => {
+				return val === false || val === true
+			}, 'boolean'),
+		func:
+			checkThat(val => {
+				return val && typeof val === 'function'
+			}, 'function')
+	}
+
 	const check = (gets, property, onErr) => {
 
 		return state => {
@@ -722,14 +692,14 @@ const keepInvariants = ( function () {
 			const hasProp = property.apply(null, visible)
 
 			if (hasProp !== true) {
-				onErr.apply(null, visible)
+				throw onErr.apply(null, visible)
 			}
 		}
 	}
 
 	return state => {
 
-		check(['score'], score =>1 , score => "")
+		check(['score'], is.number, score => "score ")
 
 	}
 
