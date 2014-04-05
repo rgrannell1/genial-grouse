@@ -28,6 +28,8 @@ const constants = ( function () {
 	self.flyingBirdDx = 0.75                        // the change in x position of the flying bird.
 	self.epsilon      = 0.00000001                  // a very small number, for use in numeric derivatives.
 
+	self.debug        = true
+
 	self.cloudWidth   = 140                         // the pixel width of each cloud.
 	self.cloudHeight  = 140 / Math.pow(1.618, 3)    // the pixel height of each cloud.
 
@@ -547,38 +549,6 @@ const react = ( function () {
 				.5 at ^2 + vt- constant = 0
 		*/
 
-		const cloudCollision = surface => {
-			/*
-			get the collisions .
-			*/
-
-			surface === 'upper' ? var compy = 'y0': var compy = 'y1'
-
-			return cloud => {
-
-				// the y components of the cloud are constant over time.
-				const cloudCoords = cloud.position(0, true)
-				const surfacey    = cloudCoords[compy]
-
-				const time =
-					solver(comps.ay, comps.vy, surfacey)
-					.map(   elem => elem + currStep)
-					.filter(elem => elem > currStep)
-					.reduce(Math.min, Infinity)
-
-				if (time === Infinity) {
-					// no future collisions.
-					return {}
-				} else {
-
-					return {
-						cloudId: cloud.cloudId,
-						time: time,
-						prop: prop
-					}
-				}
-			}
-		}
 
 		const firstCollision = (comps, currStep, clouds) => {
 			/*
@@ -586,18 +556,47 @@ const react = ( function () {
 			id we are collising with, and the face we are colliding with.
 			*/
 
+			const cloudCollision = surface => {
+				/*
+				get the collisions .
+				*/
+
+				return cloud => {
+
+					// the y components of the cloud are constant over time.
+					const cloudCoords = cloud.position(0, true)
+					const surfacey    = cloudCoords[surface]
+
+					const time =
+						solver(comps.ay, comps.vy, surface)
+						.map(   elem => elem + currStep)
+						.filter(elem => elem > currStep)
+						.reduce(Math.min, Infinity)
+
+					if (time === Infinity) {
+						// no future collisions.
+						return {}
+					} else {
+
+						return {
+							cloudId: cloud.cloudId,
+							time: time,
+							prop: prop
+						}
+					}
+				}
+			}
+
 			const collisions =
 				clouds.map(         cloudCollision('y0'))
 				.concat( clouds.map(cloudCollision('y1')) )
 				.filter(elem => !utils.isEmpty(elem))
 
-			const collision = collisions#
+			const collision = collisions
 				.reduce((prevMin, elem) => {
-					if (elem.time < prevMin.time) {
-						return elem
-					} else {
-						return prevMin
-					}
+
+					return elem.time < prevMin.time ? elem : prevMin
+
 				}, {time: Infinity})
 
 			return collision
@@ -1052,22 +1051,16 @@ const draw = ( function () {
 	render.hero = makeRenderer(['hero', 'currStep'], (hero, currStep) => {
 
 
+		if (constants.debug) {
+			for (var ith = 0; ith < 500; ith++) {
+				var p = hero.position(2 * ith)
 
+				ctx.fillStyle = 'rgba(0,0,0,0.3)'
+				ctx.fillRect(p.x0, p.y0, 3, 3)
 
-
-
-
-
-		if (!utils.isEmpty(hero.jump)) {
-			console.log(hero.jump)
+			}
+			ctx.stroke()
 		}
-
-
-
-
-
-
-
 
 
 
@@ -1112,11 +1105,13 @@ const draw = ( function () {
 		ctx.drawImage(birdy, coordsPrime.x0, coordsPrime.y0)
 		ctx.restore();
 
-		ctx.fillStyle = 'rgba(0,0,0,0.3)'
-		ctx.fillRect(
-			coords.x0, coords.y0,
-			constants.heroWidth, constants.heroHeight
-		)
+		if (constants.debug) {
+			ctx.fillStyle = 'rgba(0,0,0,0.3)'
+			ctx.fillRect(
+				coords.x0, coords.y0,
+				constants.heroWidth, constants.heroHeight
+			)
+		}
 
 	})
 
