@@ -322,6 +322,34 @@ state = ( function () {
 
 
 
+
+const makeReaction = (gets, sets, reaction) => {
+	/*
+	creates a reaction function that accesses and alters part
+	of the state.
+	*/
+
+	return state => {
+
+		const visible = gets.map(prop => state[prop])
+		const transformed = reaction.apply(null, visible)
+
+		for (var prop of sets) {
+			state[prop] = transformed[prop]
+		}
+		return state
+	}
+}
+
+
+
+
+
+
+
+
+
+
 /*
 	React
 
@@ -333,23 +361,6 @@ const react = ( function () {
 
 	var self = {}
 
-	const makeReaction = (gets, sets, reaction) => {
-		/*
-		creates a reaction function that accesses and alters part
-		of the state.
-		*/
-
-		return state => {
-
-			const visible = gets.map(prop => state[prop])
-			const transformed = reaction.apply(null, visible)
-
-			for (var prop of sets) {
-				state[prop] = transformed[prop]
-			}
-			return state
-		}
-	}
 
 	self.addClouds = makeReaction(
 		['clouds', 'currStep', 'nextCloud'], ['clouds', 'nextCloud'],
@@ -542,93 +553,103 @@ const react = ( function () {
 	}
 
 	self.takeOff = (x, y, time) => {
-		return state => {
+		return makeReaction(
+			['hero', 'currStep'], ['hero'],
+			(hero, currStep) => {
 
-			var hero = state.hero
+				if (hero.locomotion !== "standing") {
+					return {hero: hero}
+				}
 
-			if (hero.locomotion !== "standing") {
-				return state
-			}
+				const holdDuration = time - hero.jump.time
+				const coords = hero.position(currStep)
 
-			const holdDuration = time - hero.jump.time
+				var mouse = utils.asCanvasMouseCoords(x, y)
 
-			const heroCoords = hero.position(state.currStep)
+				var dist = {
+					x: +Math.abs(always.numeric(mouse.x - coords.x1)),
+					y: -Math.abs(always.numeric(mouse.y - coords.y1))
+				}
 
-			var mouse = utils.asCanvasMouseCoords(x, y)
+				var angle = Math.atan(dist.y / dist.x)
 
-			var dist = {
-				x: Math.abs(always.numeric(mouse.x - heroCoords.x1)),
-				y: -Math.abs(always.numeric(mouse.y - heroCoords.y1))
-			}
+				var velocities = {
+					x:
+						Math.min((holdDuration * Math.cos(angle)) / 30, 11),
+					y:
+						Math.min((holdDuration * Math.sin(angle)) / 30, 11)
+				}
 
-			var angle = Math.atan(dist.y / dist.x)
+				hero.position = motion.falling({
+					x0: coords.x0,
+					x1: coords.x1,
+					y0: coords.y0,
+					y1: coords.y1,
 
-			var velocities = {
-				x:
-					Math.min((holdDuration * Math.cos(angle)) / 30, 11),
-				y:
-					Math.min((holdDuration * Math.sin(angle)) / 30, 11)
-			}
+					vx: always.numeric(velocities.x),
+					vy: always.numeric(velocities.y),
 
-			hero.position = motion.falling({
-				x0: heroCoords.x0,
-				x1: heroCoords.x1,
-				y0: heroCoords.y0,
-				y1: heroCoords.y1,
+					ax: 0,
+					ay: constants.gravity,
 
-				vx: always.numeric(velocities.x),
-				vy: always.numeric(velocities.y),
+					init: always.whole(currStep)
+				})
 
-				ax: 0,
-				ay: constants.gravity,
+				hero.locomotion = 'falling'
+				hero.jump = {}
 
-				init: always.whole(state.currStep)
+				return {hero: hero}
 			})
-
-			hero.locomotion = 'falling'
-			hero.jump = {}
-
-			state.hero = hero
-
-			return state
-		}
 	}
 
 	self.setAngle = (x, y) => {
-		return state => {
+		return makeReaction(
+			['hero', 'currStep'], ['hero'],
+			(hero, currStep) => {
 
-			var hero = state.hero
-			const mouse = utils.asCanvasMouseCoords(x, y)
-			const heroCoords = hero.position(state.currStep)
+				const mouse = utils.asCanvasMouseCoords(x, y)
+				const heroCoords = hero.position(currStep)
 
-			var dist = {
-				x: always.numeric(mouse.x - heroCoords.x1),
-				y: always.numeric(mouse.y - heroCoords.y1)
+				var dist = {
+					x: always.numeric(mouse.x - heroCoords.x1),
+					y: always.numeric(mouse.y - heroCoords.y1)
+				}
+
+				if (dist.y === 0) {
+					var angle = 0
+				} else {
+					var angle = -Math.atan2(dist.x, dist.y) - (270) * 3.14/180
+				}
+
+				hero.angle = angle
+
+				return {hero: hero}
 			}
-
-			if (dist.y === 0) {
-				var angle = 0
-			} else {
-				var angle = -Math.atan2(dist.x, dist.y) - (270) * 3.14/180
-			}
-
-			hero.angle = angle
-			state.hero = hero
-
-			return state
-		}
+		)
 	}
 
 	return self
 
 })()
 
+
+
+
+
+
+
+
+
+
+
+/*
+	currently
+
+	This module returns predicates that inspect the
+	current state. These are currently used in the drawing
+	and updating modules.
+*/
 const currently = ( function () {
-	/*
-		This module returns predicates that inspect the
-		current state. These are currently used in the drawing
-		and updating modules.
-	*/
 
 	return {
 		isCloudy:
@@ -684,11 +705,23 @@ const currently = ( function () {
 
 } )()
 
+
+
+
+
+
+
+
+
+
+
+/*
+	update
+
+	This module returns a function that - given the
+	game state at state.currStep - returns the state at state.currStep + 1
+*/
 var update = ( function () {
-	/*
-		This module returns a function that - given the
-		game state at state.currStep - returns the state at state.currStep + 1
-	*/
 
 	return state => {
 
@@ -740,123 +773,119 @@ var update = ( function () {
 
 
 
+/*
+	draw
+
+	This module returns a function that handles all canvas
+	drawing for the game.
+*/
 const draw = ( function () {
-	/*
-		This module returns a function that handles all canvas
-		drawing for the game.
-	*/
 
-	const render = {
-		cloud:
-			state => {
-
-				ctx.fillStyle = constants.colours.white
-
-				state.clouds.forEach(cloud => {
-
-					var coords = cloud.position(state.currStep)
-
-					ctx.fillRect(coords.x0, coords.y0, constants.cloudWidth, constants.cloudHeight)
-				})
-			},
-		hero:
-			state => {
-
-				const hero = state.hero
-				const birdy = document.getElementById("bird-asset")
-
-				if (hero.jump.time) {
-					ctx.fillStyle = constants.colours.black
-				} else {
-					ctx.fillStyle = constants.colours.white
-				}
-
-				const coords = hero.position(state.currStep)
-
-				if (hero.locomotion === "standing") {
-
-					var angle = hero.angle
-
-				} else {
-
-					const coords1 = hero.position(state.currStep + 0.01)
-
-					const dist = {
-						x: coords.x0 - coords1.x0,
-						y: coords.y0 - coords1.y0
-					}
-
-					if (dist.y === 0) {
-						var angle = 0
-					} else {
-						var angle = -Math.atan2(dist.x, dist.y) + (270) * 3.14/180
-					}
-				}
-
-				coordsPrime = {
-					x0:  Math.cos(angle) * coords.x0 + Math.sin(angle) * coords.y0,
-					y0: -Math.sin(angle) * coords.x0 + Math.cos(angle) * coords.y0
-				}
-
-				coordsPrime.x0 -= 5
-				coordsPrime.y0 -= 3
-
-				ctx.save();
-
-				ctx.rotate(angle)
-
-				ctx.drawImage(birdy, coordsPrime.x0, coordsPrime.y0)
-				ctx.restore();
-
-				ctx.fillStyle = 'rgba(0,0,0,0.3)'
-				ctx.fillRect(
-					coords.x0, coords.y0,
-					constants.heroWidth, constants.heroHeight
-				)
-			},
-		score:
-			state => {
-				// draw the score to the corner of the screen.
-
-				ctx.font = "30px Monospace"
-
-				ctx.fillText(
-					state.score + "",
-					constants.score.x, constants.score.y)
-
-				ctx.fillText(
-					state.currStep + "",
-					constants.score.x, constants.score.y + 100)
-
-			},
-		deathScreen:
-			state => {
-
-				ctx.fillStyle = 'rgba(0,0,0,0.6)'
-
-				ctx.fillRect(
-					constants.bound.x, constants.bound.y,
-					constants.bound.x, constants.bound.y)
-
-				ctx.fillStyle = constants.colours.blue
-
-				ctx.fillRect(
-					constants.bound.x0, 200,
-					constants.bound.x1, 100)
-
-				ctx.font = "20px Monospace"
-
-				ctx.fillStyle = constants.colours.white
-
-				value = state.score
-
-				ctx.fillText(
-					"You ran out of cluck. " +
-					"Score: " + state.score,
-					constants.score.x, 265)
-
-			}
+	const makeRenderer = (gets, renderer) => {
+		return makeReaction(gets, [], renderer)
 	}
+
+	var render = {}
+
+	render.cloud = makeRenderer(['clouds', 'currStep'], (clouds, currStep) => {
+
+		ctx.fillStyle = constants.colours.white
+
+		clouds.forEach(cloud => {
+
+			var coords = cloud.position(currStep)
+
+			ctx.fillRect(
+				coords.x0, coords.y0,
+				constants.cloudWidth, constants.cloudHeight)
+		})
+	})
+
+	render.score = makeRenderer(['score'], score => {
+
+		ctx.font = "30px Monospace"
+
+		ctx.fillText(
+			state.score + "",
+			constants.score.x, constants.score.y)
+	})
+
+	render.deathScreen = makeRenderer(['score'], score => {
+		ctx.fillStyle = 'rgba(0,0,0,0.6)'
+
+		ctx.fillRect(
+			constants.bound.x, constants.bound.y,
+			constants.bound.x, constants.bound.y)
+
+		ctx.fillStyle = constants.colours.blue
+
+		ctx.fillRect(
+			constants.bound.x0, 200,
+			constants.bound.x1, 100)
+
+		ctx.font = "20px Monospace"
+
+		ctx.fillStyle = constants.colours.white
+
+		ctx.fillText(
+			"You ran out of cluck. " +
+			"Score: " + score,
+			constants.score.x, 265)
+	})
+
+	render.hero = makeRenderer(['hero', 'currStep'], (hero, currStep) => {
+
+		const birdy = document.getElementById("bird-asset")
+
+		if (hero.jump.time) {
+			ctx.fillStyle = constants.colours.black
+		} else {
+			ctx.fillStyle = constants.colours.white
+		}
+
+		const coords = hero.position(currStep)
+
+		if (hero.locomotion === "standing") {
+
+			var angle = hero.angle
+
+		} else {
+
+			const coords1 = hero.position(currStep + 0.01)
+
+			const dist = {
+				x: coords.x0 - coords1.x0,
+				y: coords.y0 - coords1.y0
+			}
+
+			if (dist.y === 0) {
+				var angle = 0
+			} else {
+				var angle = -Math.atan2(dist.x, dist.y) + (270) * 3.14/180
+			}
+		}
+
+		coordsPrime = {
+			x0:  Math.cos(angle) * coords.x0 + Math.sin(angle) * coords.y0,
+			y0: -Math.sin(angle) * coords.x0 + Math.cos(angle) * coords.y0
+		}
+
+		coordsPrime.x0 -= 5
+		coordsPrime.y0 -= 3
+
+		ctx.save();
+
+		ctx.rotate(angle)
+
+		ctx.drawImage(birdy, coordsPrime.x0, coordsPrime.y0)
+		ctx.restore();
+
+		ctx.fillStyle = 'rgba(0,0,0,0.3)'
+		ctx.fillRect(
+			coords.x0, coords.y0,
+			constants.heroWidth, constants.heroHeight
+		)
+	})
 
 	return state => {
 
