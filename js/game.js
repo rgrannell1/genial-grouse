@@ -141,7 +141,7 @@ const utils = ( function () {
 	}
 
 	self.randBetween = (lower, upper) => {
-		return always.numeric((Math.random() * (upper-lower)) + lower)
+		return (Math.random() * (upper-lower)) + lower
 	}
 
 	self.flatmap = (coll, fn) => {
@@ -158,8 +158,8 @@ const utils = ( function () {
 	self.asCanvasMouseCoords =
 		(x, y) => {
 			return {
-				x: always.numeric(x - can.offsetLeft),
-				y: always.numeric(y - can.offsetTop)
+				x: x - can.offsetLeft,
+				y: y - can.offsetTop
 			}
 		}
 
@@ -220,11 +220,11 @@ const motion = ( function () {
 
 			// add default arguments.
 
-			self.vx = self.vx
-			self.vy = self.vy
+			self.vx = self.vx || 0
+			self.vy = self.vy || 0
 
-			self.ax = self.ax
-			self.ay = self.ay
+			self.ax = self.ax || 0
+			self.ay = self.ay || 0
 
 			const dt = step - self.init
 
@@ -323,6 +323,7 @@ state = ( function () {
 
 
 
+
 const makeReaction = (gets, sets, reaction) => {
 	/*
 	creates a reaction function that accesses and alters part
@@ -382,7 +383,7 @@ const react = ( function () {
 					y0: y0,
 					y1: y1,
 
-				vx: constants.pixelDx,
+					vx: constants.pixelDx,
 					vy: 0,
 
 					ax: 0,
@@ -407,7 +408,7 @@ const react = ( function () {
 			*/
 
 			const filteredClouds = clouds.filter(cloud => {
-				return always.boolean(cloud.position(currStep).x0 > constants.bound.x0)
+				return cloud.position(currStep).x0 > constants.bound.x0
 			})
 
 			return {
@@ -436,20 +437,19 @@ const react = ( function () {
 					return (coords.y1 - coords1.y1) / (coords.x1 - coords1.x1)
 				} )()
 
-				hero.position = always.func( motion.falling({
+				hero.position = motion.falling({
 					x0: coords.x0,
 					x1: coords.x1,
 					y0: coords.y0,
 					y1: coords.y1,
 
-					vx: constants.birdDx,
+					vx: constants.flyingBirdDx,
 					vy: ySlope,
 
-					ax: 0,
 					ay: constants.gravity,
 
 					init: currStep
-				}) )
+				})
 			}
 
 			state.hero = hero
@@ -567,8 +567,8 @@ const react = ( function () {
 				var mouse = utils.asCanvasMouseCoords(x, y)
 
 				var dist = {
-					x: +Math.abs(always.numeric(mouse.x - coords.x1)),
-					y: -Math.abs(always.numeric(mouse.y - coords.y1))
+					x: +Math.abs(mouse.x - coords.x1),
+					y: -Math.abs(mouse.y - coords.y1)
 				}
 
 				var angle = Math.atan(dist.y / dist.x)
@@ -586,13 +586,13 @@ const react = ( function () {
 					y0: coords.y0,
 					y1: coords.y1,
 
-					vx: always.numeric(velocities.x),
-					vy: always.numeric(velocities.y),
+					vx: velocities.x,
+					vy: velocities.y,
 
 					ax: 0,
 					ay: constants.gravity,
 
-					init: always.whole(currStep)
+					init: currStep
 				})
 
 				hero.locomotion = 'falling'
@@ -611,8 +611,8 @@ const react = ( function () {
 				const heroCoords = hero.position(currStep)
 
 				var dist = {
-					x: always.numeric(mouse.x - heroCoords.x1),
-					y: always.numeric(mouse.y - heroCoords.y1)
+					x: mouse.x - heroCoords.x1,
+					y: mouse.y - heroCoords.y1
 				}
 
 				if (dist.y === 0) {
@@ -705,6 +705,35 @@ const currently = ( function () {
 
 } )()
 
+/*
+	keepInvariants
+
+	Ensure that certain properties of
+	the state are invariant for each step of the
+	game.
+*/
+const keepInvariants = ( function () {
+
+	const check = (gets, property, onErr) => {
+
+		return state => {
+
+			const visible = gets.map(prop => state[prop])
+			const hasProp = property.apply(null, visible)
+
+			if (hasProp !== true) {
+				onErr.apply(null, visible)
+			}
+		}
+	}
+
+	return state => {
+
+		check(['score'], score =>1 , score => "")
+
+	}
+
+} )()
 
 
 
@@ -751,12 +780,12 @@ var update = ( function () {
 			var reaction = state.reactions[ith]
 
 			if (reaction) {
-				state = always.func(reaction)(state)
+				state = reaction(state)
 			}
 		}
 
 		state.reactions = []
-		state.currStep = always.whole(state.currStep + 1)
+		state.currStep = state.currStep + 1
 
 		return state
 	}
@@ -870,8 +899,8 @@ const draw = ( function () {
 			y0: -Math.sin(angle) * coords.x0 + Math.cos(angle) * coords.y0
 		}
 
-		coordsPrime.x0 -= 5
-		coordsPrime.y0 -= 3
+		coordsPrime.x0 += 0
+		coordsPrime.y0 -= 0
 
 		ctx.save();
 
@@ -970,8 +999,11 @@ const draw = ( function () {
 		*/
 
 		if (!state.hero.isDead) {
-			state = update(state);
+
+			state = update(state)
+			keepInvariants(state)
 			draw(state)
+
 		} else {
 			clearInterval(GAMEID)
 		}
