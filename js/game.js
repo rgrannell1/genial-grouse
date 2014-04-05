@@ -267,7 +267,7 @@ const motion = ( function () {
 			const x0 = self.x0 + (self.vx * dt) + (0.5 * self.ax * (dt * dt))
 			const x1 = self.x1 + (self.vx * dt) + (0.5 * self.ax * (dt * dt))
 
-			const y0 = self.y0 + (self.vy * dt) + (0.5 * self.ay * (dt * dt))
+			const y0 = self.y1 + (self.vy * dt) + (0.5 * self.ay * (dt * dt))
 			const y1 = self.y1 + (self.vy * dt) + (0.5 * self.ay * (dt * dt))
 
 			return {
@@ -568,10 +568,10 @@ const react = ( function () {
 					const surfacey    = cloudCoords[surface]
 
 					const time =
-						solver(comps.ay, comps.vy, surface)
-						.map(   elem => elem + currStep)
-						.filter(elem => elem > currStep)
-						.reduce(Math.min, Infinity)
+						solver(comps.ay, comps.vy, -surfacey)
+						.filter(t => t > 0)
+						.map(t => t + currStep)
+						.filter(t => t > currStep)[0]
 
 					if (time === Infinity) {
 						// no future collisions.
@@ -579,9 +579,9 @@ const react = ( function () {
 					} else {
 
 						return {
-							cloudId: cloud.cloudId,
 							time: time,
-							prop: prop
+							surface: surface,
+							cloudId: cloud.cloudId
 						}
 					}
 				}
@@ -614,13 +614,30 @@ const react = ( function () {
 
 				var collision = firstCollision(motionComponents, currStep, clouds)
 
-				if (collision.time === Infinity) {
-					return {
-						collisions: collision
-					}
+				if (collision.time !== Infinity) {
+
+					const futureCoords = hero.position(collision.time)
+
+					collision.time = Math.floor(collision.time)
+
+					collision.position = motion.falling({
+						x0: futureCoords.x0,
+						x1: futureCoords.x1,
+
+						y0: futureCoords.y0,
+						y1: futureCoords.y1,
+
+						vx: constants.pixelDx,
+
+						init: collision.time
+					})
 				}
 
-				const futureCoords = hero.position(collision.time)
+
+
+				return {
+					collisions: collision
+				}
 			}
 		)
 
@@ -645,12 +662,12 @@ const react = ( function () {
 			the pre-computed motion function.
 			*/
 
-			hero.position   = collision.position
-			hero.locomotion = collision.locomotion
+			hero.position   = collisions.position
+			hero.locomotion = collisions.locomotion
 
-			if (hero.lastCloud !== collision.cloudId) {
+			if (hero.lastCloud !== collisions.cloudId) {
 				score += 1
-				hero.lastCloud = collision.cloudId
+				hero.lastCloud = collisions.cloudId
 			}
 
 			return {
@@ -844,7 +861,11 @@ const currently = ( function () {
 		['hero'], hero => hero.locomotion !== 'falling')
 
 	self.colliding = makeInspector(
-		['hero'], hero => !utils.isEmpty(hero.jump))
+		['collisions', 'currStep'],
+		(collisions, currStep) => {
+			return !utils.isEmpty(collisions) && collisions.time === currStep
+		}
+	)
 
 	self.isDead = makeInspector(
 		['hero'], hero => hero.isDead)
@@ -1055,7 +1076,7 @@ const draw = ( function () {
 			for (var ith = 0; ith < 500; ith++) {
 				var p = hero.position(2 * ith)
 
-				ctx.fillStyle = 'rgba(0,0,0,0.3)'
+				ctx.fillStyle = 'rgba(0,0,0,0.1)'
 				ctx.fillRect(p.x0, p.y0, 3, 3)
 
 			}
