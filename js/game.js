@@ -446,44 +446,42 @@ const react = ( function () {
 	)
 
 	self.clipWings = makeReaction(
-		['hero', 'currStep'], ['hero'],
+		['hero', 'currStep'], ['hero', 'collisions'],
 		(hero, currStep) => {
 			/*
 			Swap the initial flying sin-wave motion function for a
 			falling motion function.
 			*/
 
-			if (hero.locomotion === "flying") {
-				hero.locomotion = 'falling'
+			hero.locomotion = 'falling'
 
-				const coords = hero.position(currStep)
+			const coords = hero.position(currStep)
 
-				const ySlope = ( function () {
+			const ySlope = ( function () {
 
-					const coords1 = hero.position(currStep + constants.epsilon)
+				const coords1 = hero.position(currStep + constants.epsilon)
 
-					return (coords.y1 - coords1.y1) / (coords.x1 - coords1.x1)
-				} )()
+				return (coords.y1 - coords1.y1) / (coords.x1 - coords1.x1)
+			} )()
 
-				hero.position = motion.falling({
-					x0: coords.x0,
-					x1: coords.x1,
-					y0: coords.y0,
-					y1: coords.y1,
+			hero.position = motion.falling({
+				x0: coords.x0,
+				x1: coords.x1,
+				y0: coords.y0,
+				y1: coords.y1,
 
-					vx: constants.flyingBirdDx,
-					vy: ySlope,
+				vx: constants.flyingBirdDx,
+				vy: ySlope,
 
-					ay: constants.gravity,
+				ay: constants.gravity,
 
-					init: currStep
-				})
+				init: currStep
+			})
+
+			return {
+				hero: hero,
+				collisions: {}
 			}
-
-			state.hero = hero
-
-			return state
-
 		}
 	)
 
