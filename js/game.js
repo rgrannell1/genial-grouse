@@ -481,70 +481,112 @@ const react = ( function () {
 		}
 	)
 
-	self.enqueueCollisions = makeReaction(
-		['hero', 'clouds',  'currStep'], ['hero', 'collisions'],
-		(hero, clouds, currStep) => {
-				/*
-				Every moving object in the game has a trajectory function.
-				Because of this collisions can easily be found before they happen;
-				the player trajectory function and each cloud trajectory function can
-				be used to checked to see if they intersect at any point.
+	/*
+	Every moving object in the game has a trajectory function.
+	Because of this collisions can easily be found before they happen;
+	the player trajectory function and each cloud trajectory function can
+	be used to checked to see if they intersect at any point.
 
-				If an interection between the player and cloud is found in the future,
-				then the player either rebounds (1.), lands on the platform (2.), or
+	If an interection between the player and cloud is found in the future,
+	then the player either rebounds (1.), lands on the platform (2.), or
 
 
-				1, Rebounds. The x component of the birds velocity is reversed.
-				2, Lands. The y component of the acceleration and velocities are set
-					to zero, and the x component is set to the scroll speed dx.
-				3, Falls into oblivion. The trajectory is kept.
-				*/
+	1, Rebounds. The x component of the birds velocity is reversed.
+	2, Lands. The y component of the acceleration and velocities are set
+		to zero, and the x component is set to the scroll speed dx.
+	3, Falls into oblivion. The trajectory is kept.
+	*/
 
-				/*
-					for each cloud:
-						find the t' that the trajectory shares the same y position as the cloud
-						using the quadratic equation.
+	/*
+		for each cloud:
+			find the t' that the trajectory shares the same y position as the cloud
+			using the quadratic equation.
 
-						If t' isnt in the right range next.
+			If t' isnt in the right range next.
 
-						get the [x0, x1, y0, y1 of the function at this time.
-						if
-
-
-						.5 at ^2 + vt- constant = 0
+			get the [x0, x1, y0, y1 of the function at this time.
+			if
 
 
-				*/
+			.5 at ^2 + vt- constant = 0
 
-			const motionComponents = hero.position(0, true)
-			var intersectTimes     = solver(motionComponents.ay, motionComponents.vy, 1000)
 
-			intersectTimes[0] += currStep
-			intersectTimes[1] += currStep
+	*/
+	self.enqueueCollisions = ( function () {
+		/*
+		Every moving object in the game has a trajectory function.
+		Because of this collisions can easily be found before they happen;
+		the player trajectory function and each cloud trajectory function can
+		be used to checked to see if they intersect at any point.
 
-			const collisionTime = intersectTimes.reduce(Math.max)
-			const futureCoords  = hero.position(collisionTime)
+		If an interection between the player and cloud is found in the future,
+		then the player either rebounds (1.), lands on the platform (2.), or
 
-			hero.jump = {
-				time: collisionTime,
-				position: motion.falling({
 
-					x0: futureCoords.x0,
-					x1: futureCoords.x1,
-					y0: futureCoords.y0,
-					y1: futureCoords.y1,
+		1, Rebounds. The x component of the birds velocity is reversed.
+		2, Lands. The y component of the acceleration and velocities are set
+			to zero, and the x component is set to the scroll speed dx.
+		3, Falls into oblivion. The trajectory is kept.
+		*/
 
-					vx: constants.pixelDx,
+		/*
+			for each cloud:
+				find the t' that the trajectory shares the same y position as the cloud
+				using the quadratic equation.
 
-					init: currStep
-				})
-			}
+				If t' isnt in the right range next.
 
-			return {
-				hero: hero
-			}
+				get the [x0, x1, y0, y1 of the function at this time.
+				if
+
+
+				.5 at ^2 + vt- constant = 0
+
+
+		*/
+
+		const findIntersectTimes = (motionComponents, clouds) => {
+
 		}
-	)
+
+		return makeReaction(
+			['hero', 'clouds',  'currStep'], ['collisions'],
+			(hero, clouds, currStep) => {
+
+				const motionComponents = hero.position(0, true)
+
+				var intersectTimes = findIntersectTimes(motionComponents, clouds)
+
+				var intersectTimes     = solver(motionComponents.ay, motionComponents.vy, 1000)
+
+				intersectTimes[0] += currStep
+				intersectTimes[1] += currStep
+
+				const collisionTime = intersectTimes.reduce(Math.max)
+				const futureCoords  = hero.position(collisionTime)
+
+				const collision = {
+					time: collisionTime,
+					position: motion.falling({
+
+						x0: futureCoords.x0,
+						x1: futureCoords.x1,
+						y0: futureCoords.y0,
+						y1: futureCoords.y1,
+
+						vx: constants.pixelDx,
+
+						init: currStep
+					})
+				}
+
+				return {
+					collisions: collision
+				}
+			}
+		)
+
+	} )()
 
 	self.alterCourse = makeReaction(
 		['hero', 'collisions', 'score'], ['hero', 'collisions', 'score'],
