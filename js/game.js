@@ -597,6 +597,8 @@ const react = ( function () {
 
 				}, {time: Infinity})
 
+			clog("t")
+
 			return collision
 		}
 
@@ -615,20 +617,40 @@ const react = ( function () {
 				if (collision.time !== Infinity) {
 
 					const futureCoords = hero.position(collision.time)
+					const future = {
+						coords:  hero.position(collision.time)
+					}
 
 					collision.time = Math.floor(collision.time)
 
-					collision.position = motion.falling({
-						x0: futureCoords.x0,
-						x1: futureCoords.x1,
+					if (collision.surface === 'y0') {
+						collision.position = motion.falling({
+							x0: futureCoords.x0,
+							x1: futureCoords.x1,
 
-						y0: futureCoords.y0,
-						y1: futureCoords.y1,
+							y0: futureCoords.y0,
+							y1: futureCoords.y1,
 
-						vx: constants.pixelDx,
+							vx: constants.pixelDx,
 
-						init: collision.time
-					})
+							init: collision.time
+						})
+					} else {
+						collision.position = motion.falling({
+							x0: futureCoords.x0,
+							x1: futureCoords.x1,
+
+							y0: futureCoords.y0,
+							y1: futureCoords.y1,
+
+							vx: 0, //fix
+							vy: 0,
+
+							ax: 0,
+							ay: 0.1
+						})
+					}
+
 				}
 
 				clog(collision.time)
@@ -1081,15 +1103,12 @@ const draw = ( function () {
 			for (var ith = 0; ith < 500; ith++) {
 				var p = hero.position(2 * ith)
 
-				ctx.fillStyle = 'rgba(0,0,0,0.1)'
+				ctx.fillStyle = 'rgba(0,0,0,0.05)'
 				ctx.fillRect(p.x0, p.y0, 3, 3)
 
 			}
 			ctx.stroke()
 		}
-
-
-
 
 
 		const birdy = document.getElementById("bird-asset")
