@@ -136,8 +136,8 @@ const motion = ( function () {
 			self.vx   = self.vx   || 0
 			self.vy   = self.vy   || 0
 
-			self.ax = self.ax || 0
-			self.ay = self.ay || 0
+			self.ax = self.ax     || 0
+			self.ay = self.ay     || 0
 
 			self.init = self.init || 0
 
@@ -226,7 +226,7 @@ const motion = ( function () {
 
 // the initial state
 
-state = ( function () {
+var state = ( function () {
 
 	var self = {}
 
@@ -251,7 +251,7 @@ state = ( function () {
 
 	self.clouds     = []
 	self.reactions  = []
-	self.collisions = {}
+	self.queuedCollision = {}
 
 	self.score      = 0
 	self.nextCloud  = 0
@@ -359,7 +359,7 @@ const react = ( function () {
 	)
 
 	self.clipWings = makeReaction(
-		['hero', 'currStep'], ['hero', 'collisions'],
+		['hero', 'currStep'], ['hero', 'queuedCollision'],
 		(hero, currStep) => {
 			/*
 			Swap the initial flying sin-wave motion function for a
@@ -393,7 +393,7 @@ const react = ( function () {
 
 			return {
 				hero: hero,
-				collisions: {}
+				queuedCollision: {}
 			}
 		}
 	)
@@ -461,7 +461,7 @@ const react = ( function () {
 		*/
 
 		return makeReaction(
-			['hero', 'clouds',  'currStep'], ['collisions'],
+			['hero', 'clouds',  'currStep'], ['queuedCollision'],
 			(hero, clouds, currStep) => {
 
 				var collision = {
@@ -521,10 +521,8 @@ const react = ( function () {
 
 				}
 
-				clog(collision)
-
 				return {
-					collisions: collision
+					queuedCollision: collision
 				}
 
 			}
@@ -542,8 +540,8 @@ const react = ( function () {
 
 
 	self.alterCourse = makeReaction(
-		['hero', 'collisions', 'score'], ['hero', 'collisions', 'score'],
-		(hero, collisions, score) => {
+		['hero', 'queuedCollision', 'score'], ['hero', 'queuedCollision', 'score'],
+		(hero, queuedCollision, score) => {
 			/*
 			The pre-calculated collision point has
 			been reached, so we need to swap out
@@ -551,17 +549,17 @@ const react = ( function () {
 			the pre-computed motion function.
 			*/
 
-			hero.position   = collisions.position
-			hero.locomotion = collisions.locomotion
+			hero.position   = queuedCollision.position
+			hero.locomotion = queuedCollision.locomotion
 
-			if (hero.lastCloud !== collisions.cloudId) {
-				hero.lastCloud = collisions.cloudId
+			if (hero.lastCloud !== queuedCollision.cloudId) {
+				hero.lastCloud   = queuedCollision.cloudId
 				score += 1
 			}
 
 			return {
 				hero: hero,
-				collisions: {},
+				queuedCollision: {},
 				score: score
 			}
 		}
@@ -716,40 +714,42 @@ const currently = ( function () {
 
 	var self = {}
 
-	const makeInspector = (gets, inspector) => {
-		/*
-		creates a reaction function that accesses and alters part
-		of the state.
-		*/
+	/*
+	creates a reaction function that accesses and alters part
+	of the state.
+	*/
+	const makePredicate = (gets, inspector) => {
 
 		return state => {
-
-			const visible = gets.map(prop => state[prop])
-			return inspector.apply(null, visible)
+			return inspector.apply(null, gets.map(prop => state[prop]))
 		}
 	}
 
-	self.isCloudy = makeInspector(['clouds'],
+	/*
+	check if there are clouds on screen.
+	*/
+	self.isCloudy = makePredicate(['clouds'],
 		clouds => clouds.length > 0)
 
-	self.noFutureCollisions = makeInspector(
-		['collisions', 'hero', 'clouds'],
-		(collisions, hero, clouds) => {
-			return utils.isEmpty(collisions) && clouds.length > 0
+	self.noQueuedCollisions = makePredicate(
+		['queuedCollision', 'hero', 'clouds'],
+		(queuedCollision, hero, clouds) => {
+			return utils.isEmpty(queuedCollision) && clouds.length > 0
 		}
 	)
 
-	self.cloudIsReady = makeInspector(
+	self.cloudIsReady = makePredicate(
 		['currStep'],
 		currStep => currStep % 150 === 0)
 
-	self.offscreen = makeInspector(
+	self.offscreen = makePredicate(
 		['hero', 'currStep'],
 		(hero, currStep) => {
 
 			const coords = hero.position(currStep)
 
-			const isOffscreen = coords.y1 > constants.bound.y1 ||
+			const isOffscreen =
+				coords.y1 > constants.bound.y1 ||
 				coords.x0 < constants.bound.x0 ||
 				coords.x1 > constants.bound.x1
 
@@ -757,26 +757,26 @@ const currently = ( function () {
 		}
 	)
 
-	self.flying = makeInspector(
+	self.flying = makePredicate(
 		['hero'], hero => hero.locomotion === 'flying')
 
-	self.falling = makeInspector(
+	self.falling = makePredicate(
 		['hero'], hero => hero.locomotion === 'falling')
 
-	self.notFalling = makeInspector(
+	self.notFalling = makePredicate(
 		['hero'], hero => hero.locomotion !== 'falling')
 
-	self.colliding = makeInspector(
-		['collisions', 'currStep'],
-		(collisions, currStep) => {
-			return !utils.isEmpty(collisions) && collisions.time === currStep
+	self.colliding = makePredicate(
+		['queuedCollision', 'currStep'],
+		(queuedCollision, currStep) => {
+			return !utils.isEmpty(queuedCollision) && queuedCollision.time === currStep
 		}
 	)
 
-	self.isDead = makeInspector(
+	self.isDead = makePredicate(
 		['hero'], hero => hero.isDead)
 
-	self.isAlive = makeInspector(
+	self.isAlive = makePredicate(
 		['hero'], hero => !hero.isAlive)
 
 	return self
@@ -829,27 +829,36 @@ const check = ( function () {
 
 	return state => {
 
-		const check = (gets, property, onErr) => {
+		/*
+		check that certain properties are true for a predicate.
+		*/
+		const check = (gets, predicate, onErr) => {
 
 			const visible = gets.map(prop => state[prop])
-			const hasProp = property.apply(null, visible)
+			const hasProp = predicate.apply(null, visible)
 
 			if (hasProp !== true) {
 				throw onErr.apply(null, visible)
 			}
 		}
 
-		check(['score'], is.number,
+		/*
+		Check the simple numeric state properties.
+		*/
+		check(['score'],     is.number,
 			score => "score not number.")
 
 		check(['nextCloud'], is.number,
 			score => "nextCloud not number.")
 
-		check(['currStep'], is.number,
+		check(['currStep'],  is.number,
 			score => "currStep not number.")
 
 
-		check(['collisions'],
+		/*
+		Check the collision object and its properties.
+		*/
+		check(['queuedCollision'],
 			obj   => {
 				return utils.isEmpty(obj) ?
 					true :
@@ -857,9 +866,9 @@ const check = ( function () {
 					'position'   in obj &&
 					'locomotion' in obj
 			},
-			obj => "properties missing from collisions.")
+			obj => "properties missing from queuedCollision.")
 
-		check(['collisions'],
+		check(['queuedCollision'],
 			obj   => {
 				return utils.isEmpty(obj) ?
 					true :
@@ -905,7 +914,7 @@ var update = ( function () {
 
 		when(currently.offscreen, react.killHero)
 
-		when(currently.noFutureCollisions, react.scheduleCollision)
+		when(currently.noQueuedCollisions, react.scheduleCollision)
 
 		when(currently.colliding, react.alterCourse)
 
