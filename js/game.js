@@ -908,15 +908,15 @@ var update = ( function () {
 			}
 		}
 
-		when(currently.cloudIsReady, react.addClouds)
+		when(currently.cloudIsReady,       react.addClouds)
 
-		when(currently.isCloudy, react.removeOldClouds)
+		when(currently.isCloudy,           react.removeOldClouds)
 
-		when(currently.offscreen, react.killHero)
+		when(currently.offscreen,          react.killHero)
 
 		when(currently.noQueuedCollisions, react.scheduleCollision)
 
-		when(currently.colliding, react.alterCourse)
+		when(currently.colliding,          react.alterCourse)
 
 		/*
 			consume every event in the queue, in order.
@@ -1091,9 +1091,9 @@ const draw = ( function () {
 		can.width = can.width
 
 		when(currently.isCloudy, render.cloud)
-		when(currently.isDead, render.deathScreen)
-		when(currently.isAlive, render.score)
-		when(currently.isAlive, render.hero)
+		when(currently.isDead,   render.deathScreen)
+		when(currently.isAlive,  render.score)
+		when(currently.isAlive,  render.hero)
 	}
 
 } )()
