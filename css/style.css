@@ -1,6 +1,6 @@
 
 canvas  {
-	margin-left: 400px;
+	float: left;
 	background:url(../assets/background.png) center
 }
 

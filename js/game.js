@@ -8,7 +8,15 @@ var ctx = can.getContext("2d")
 
 const clog = console.log
 
+const range = upper => {
+	var out = []
 
+	for (var ith = 0; ith < upper; ith++) {
+		out[ith] = ith
+	}
+
+	return out
+}
 
 
 
@@ -201,7 +209,7 @@ const motion = ( function () {
 		vx: -1, init: 0
 	})
 
-	for (var ith = 0; ith < 100; ith++) {
+	for (var ith of range(100)) {
 
 		var pos = leftMotion(ith)
 		assert(pos.x0 === -ith)
@@ -235,8 +243,8 @@ var state = ( function () {
 			x0: 10,
 			x1: 10 + constants.heroWidth,
 
-			y0: constants.cloudRange.y0,
-			y1: constants.cloudRange.y1,
+			y0: constants.cloudRange.y1 + 30,
+			y1: constants.cloudRange.y1 + constants.heroHeight+ 30,
 
 			vx: constants.flyingBirdDx,
 			vy: 0,
@@ -429,7 +437,7 @@ const react = ( function () {
 
 
 	*/
-	self.scheduleCollision = ( function () {
+	self.queueCollision = ( function () {
 		/*
 		Every moving object in the game has a trajectory function.
 		Because of this collisions can easily be found before they happen;
@@ -464,12 +472,15 @@ const react = ( function () {
 			['hero', 'clouds',  'currStep'], ['queuedCollision'],
 			(hero, clouds, currStep) => {
 
+				if (constants.debug) {
+					console.log("-- loaded queueCollision( )")
+				}
+
 				var collision = {
 					time:       Infinity,
 					locomotion: "standing",
 					position: t => "this function is a stand-in, and will never be called."
 				}
-
 
 				for (cloud of clouds) {
 
@@ -486,7 +497,7 @@ const react = ( function () {
 
 					var root = constants.bound.x1
 
-					for (var ith = 0; ith < 500; ith++) {
+					for (var ith of range(500)) {
 						root -= height.diff(root) / height.diffRate(root)
 					}
 
@@ -734,7 +745,8 @@ const currently = ( function () {
 	self.noQueuedCollisions = makePredicate(
 		['queuedCollision', 'hero', 'clouds'],
 		(queuedCollision, hero, clouds) => {
-			return utils.isEmpty(queuedCollision) && clouds.length > 0
+			return utils.isEmpty(queuedCollision) &&
+				hero.locomotion === "falling" && clouds.length > 0
 		}
 	)
 
@@ -854,7 +866,6 @@ const check = ( function () {
 		check(['currStep'],  is.number,
 			score => "currStep not number.")
 
-
 		/*
 		Check the collision object and its properties.
 		*/
@@ -914,7 +925,7 @@ var update = ( function () {
 
 		when(currently.offscreen,          react.killHero)
 
-		when(currently.noQueuedCollisions, react.scheduleCollision)
+		when(currently.noQueuedCollisions, react.queueCollision)
 
 		when(currently.colliding,          react.alterCourse)
 
@@ -922,16 +933,12 @@ var update = ( function () {
 			consume every event in the queue, in order.
 		*/
 
-		for (var ith = 0; ith < state.reactions.length; ith++) {
-			var reaction = state.reactions[ith]
-
-			if (reaction) {
-				state = reaction(state)
-			}
+		for (var ith of range(state.reactions.length)) {
+			state = state.reactions[ith](state)
 		}
 
 		state.reactions = []
-		state.currStep = state.currStep + 1
+		state.currStep += 1
 
 		return state
 	}
@@ -962,7 +969,11 @@ const draw = ( function () {
 
 	var render = {}
 
-	render.cloud = makeRenderer(['clouds', 'currStep'], (clouds, currStep) => {
+	/*
+	render the cloud.
+	*/
+	render.cloud = makeRenderer(
+		['clouds', 'currStep'], (clouds, currStep) => {
 
 		ctx.fillStyle = constants.colours.white
 
@@ -1016,7 +1027,6 @@ const draw = ( function () {
 	})
 
 	render.hero = makeRenderer(['hero', 'currStep'], (hero, currStep) => {
-
 
 		if (constants.debug) {
 			for (var ith = 0; ith < 500; ith++) {
