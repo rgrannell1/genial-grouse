@@ -115,93 +115,6 @@ const utils = ( function () {
 
 
 
-/*
-	solver
-
-	this module solves quadratic and linear equations.
-*/
-
-const solver = ( function () {
-
-	const match = (triples) => {
-
-		const _ = undefined
-		const args = Array.prototype.slice.call(arguments)
-
-		for (triple of args) {
-
-			const values   = triple[0]
-			const pattern  = triple[1]
-			const response = triple[2]
-
-			var allMatches = true
-
-			for (var ith = 0; ith < values.length; ith++) {
-				allMatches = allMatches && (pattern[ith] === _ || values[ith] === pattern[ith])
-			}
-
-			if (allMatches) {
-				return response
-			}
-		}
-	}
-
-	const solve = (a, b, c) => {
-
-		const _ = undefined
-
-		const func = match(
-			[[a, b, c], [0, 0, _], (a, b, c) => {
-				return []
-			}],
-
-			[[a, b, c], [0, _, _], (a, b, c) => {
-				// linear-equation.
-
-				return [-c / b]
-			}],
-
-			[[a, b, c], [_, 0, 0], (a, b, c) => {
-				// only the second-order term.
-
-				return [0]
-			}],
-
-			[[a, b, c], [_, _, _], (a, b, c) => {
-				// the quadratic formula; the most general case.
-
-				const inner = Math.abs(b * b - 4 * a * c)
-				const denominator = 2*a
-
-				if (inner < 0) {
-					return []
-				} else {
-
-					const lower = (-b + Math.sqrt(inner)) / denominator
-					const upper = (-b - Math.sqrt(inner)) / denominator
-
-					return [lower, upper]
-				}
-			}]
-		)
-
-		return func(a, b, c)
-	}
-
-	/* ----------------- Unit Tests ----------------- */
-
-	console.assert(solve(0, 0, 0).length === 0)
-	console.assert(solve(0, 0, 9).length === 0)
-	console.assert(solve(0, 2, -2)[0] === 1)
-
-	console.assert(solve(1, 4, 3)[0] === -1)
-	console.assert(solve(1, 4, 3)[1] === -3)
-
-	return solve
-
-} )()
-
-
 
 
 
@@ -547,117 +460,78 @@ const react = ( function () {
 				.5 at ^2 + vt- constant = 0
 		*/
 
-
-		const firstCollision = (comps, currStep, clouds) => {
-			/*
-			get the time of the first collisions, the cloud
-			id we are collising with, and the face we are colliding with.
-			*/
-
-			const cloudCollision = surface => {
-				/*
-				get the collisions .
-				*/
-
-				return cloud => {
-
-					// the y components of the cloud are constant over time.
-					const cloudCoords = cloud.position(0, true)
-					const surfacey    = cloudCoords[surface]
-
-					const time =
-						solver(comps.ay, comps.vy, -surfacey)
-						.filter(t => t > 0)
-						.map(t => t + currStep)
-						.filter(t => t > currStep)[0]
-
-					if (time === Infinity) {
-						// no future collisions.
-						return {}
-					} else {
-
-						return {
-							time: time,
-							surface: surface,
-							cloudId: cloud.cloudId
-						}
-					}
-				}
-			}
-
-			const collisions =
-				clouds.map(         cloudCollision('y0'))
-				.concat( clouds.map(cloudCollision('y1')) )
-				.filter(elem => !utils.isEmpty(elem))
-
-			const collision = collisions
-				.reduce((prevMin, elem) => {
-
-					return elem.time < prevMin.time ? elem : prevMin
-
-				}, {time: Infinity})
-
-			clog("t")
-
-			return collision
-		}
-
-		/*
-		The final scheduleCollision function.
-		*/
-
 		return makeReaction(
 			['hero', 'clouds',  'currStep'], ['collisions'],
 			(hero, clouds, currStep) => {
 
-				const motionComponents = hero.position(0, true)
-
-				var collision = firstCollision(motionComponents, currStep, clouds)
-
-				if (collision.time !== Infinity) {
-
-					const futureCoords = hero.position(collision.time)
-					const future = {
-						coords:  hero.position(collision.time)
-					}
-
-					collision.time = Math.floor(collision.time)
-
-					if (collision.surface === 'y0') {
-						collision.position = motion.falling({
-							x0: futureCoords.x0,
-							x1: futureCoords.x1,
-
-							y0: futureCoords.y0,
-							y1: futureCoords.y1,
-
-							vx: constants.pixelDx,
-
-							init: collision.time
-						})
-					} else {
-						collision.position = motion.falling({
-							x0: futureCoords.x0,
-							x1: futureCoords.x1,
-
-							y0: futureCoords.y0,
-							y1: futureCoords.y1,
-
-							vx: 0, //fix
-							vy: 0,
-
-							ax: 0,
-							ay: 0.1
-						})
-					}
-
+				var collision = {
+					time: Infinity,
+					locomotion: "standing"
 				}
 
-				clog(collision.time)
+				for (cloud of clouds) {
+
+					var cloudCoords = cloud.position(0, true)
+
+					var fn = t => {
+						return hero.position(t).y1 - cloudCoords.y0
+					}
+					var fnPrime = t => {
+						return (fn(t + 0.1) - fn(t)) / 0.1
+					}
+
+					var root = constants.bound.x1
+
+					for (var ith = 0; ith < 500; ith++) {
+						root -= fn(root) / fnPrime(root)
+					}
+
+					if (root < currStep || root > currStep + 1000) {
+						return {}
+					}
+
+					// set better upper bound
+					var futureCloud = cloud.position(root)
+					var futureHero  = hero.position(root)
+
+					var isAlignedX =
+						(futureHero.x1 > futureCloud.x0) && (futureHero.x0 < futureCloud.x1)
+
+					if (isAlignedX && root < collision.time) {
+
+						if (fnPrime(root) > 0) {
+
+							collision.time = root
+
+							collision.position = motion.falling({
+								x0: futureHero.x0,
+								x1: futureHero.x1,
+
+								y0: futureHero.y0,
+								y1: futureHero.y1,
+
+								vx: constants.pixelDx,
+
+								init: root
+							})
+
+							collision.locomotion = "standing"
+
+						} else {
+
+						}
+					}
+				}
+
+				// a hack
+				if (collision.time > 5000) {
+					return {collisions: {}}
+				}
 
 				return {
 					collisions: collision
 				}
+
 			}
 		)
 
@@ -692,7 +566,7 @@ const react = ( function () {
 
 			return {
 				hero: hero,
-				collisions: [],
+				collisions: {},
 				score: score
 			}
 		}
