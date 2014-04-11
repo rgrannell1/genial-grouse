@@ -30,7 +30,7 @@ const constants = ( function () {
 
 	self.debug        = true
 
-	self.cloudWidth   = 140                         // the pixel width of each cloud.
+	self.cloudWidth   = 200                         // the pixel width of each cloud.
 	self.cloudHeight  = 140 / Math.pow(1.618, 3)    // the pixel height of each cloud.
 
 	self.gravity      = 9.81 / 60                   // the gravitational acceleration.
@@ -316,7 +316,7 @@ const react = ( function () {
 			*/
 
 			const y0 = utils.randBetween(
-				0.150 * constants.bound.y1 - constants.heroHeight - 10,
+				0.150 * constants.bound.y1 + constants.heroHeight + 10,
 				0.875 * constants.bound.y1)
 
 			const y1 = y0 + constants.cloudHeight
@@ -345,7 +345,7 @@ const react = ( function () {
 		['clouds', 'currStep'], ['clouds'],
 		(clouds, currStep) => {
 			/*
-			Remove the clouds that drift off-screen.
+			Remove the clouds that have drifted off-screen.
 			*/
 
 			const filteredClouds = clouds.filter(cloud => {
@@ -465,29 +465,32 @@ const react = ( function () {
 			(hero, clouds, currStep) => {
 
 				var collision = {
-					time: Infinity,
+					time:       Infinity,
 					locomotion: "standing"
 				}
+
 
 				for (cloud of clouds) {
 
 					var cloudCoords = cloud.position(0, true)
 
-					var fn = t => {
-						return hero.position(t).y1 - cloudCoords.y0
-					}
-					var fnPrime = t => {
-						return (fn(t + 0.1) - fn(t)) / 0.1
+					var height = {
+						diff:     t => {
+							return hero.position(t).y1 - cloudCoords.y0
+						},
+						diffRate: t => {
+							return (height.diff(t + 0.1) - height.diff(t)) / 0.1
+						}
 					}
 
 					var root = constants.bound.x1
 
 					for (var ith = 0; ith < 500; ith++) {
-						root -= fn(root) / fnPrime(root)
+						root -= height.diff(root) / height.diffRate(root)
 					}
 
-					if (root < currStep || root > currStep + 1000) {
-						return {}
+					if (root < currStep || root > currStep + 2000) {
+						continue
 					}
 
 					// set better upper bound
@@ -499,34 +502,25 @@ const react = ( function () {
 
 					if (isAlignedX && root < collision.time) {
 
-						if (fnPrime(root) > 0) {
+						collision.time = Math.floor(root)
+						collision.locomotion = "standing"
 
-							collision.time = root
+						collision.position = motion.falling({
+							x0: futureHero.x0,
+							x1: futureHero.x1,
 
-							collision.position = motion.falling({
-								x0: futureHero.x0,
-								x1: futureHero.x1,
+							y0: futureHero.y0,
+							y1: futureHero.y1,
 
-								y0: futureHero.y0,
-								y1: futureHero.y1,
+							vx: constants.pixelDx,
 
-								vx: constants.pixelDx,
-
-								init: root
-							})
-
-							collision.locomotion = "standing"
-
-						} else {
-
-						}
+							init: root
+						})
 					}
+
 				}
 
-				// a hack
-				if (collision.time > 5000) {
-					return {collisions: {}}
-				}
+				clog(collision)
 
 				return {
 					collisions: collision
@@ -552,7 +546,7 @@ const react = ( function () {
 			/*
 			The pre-calculated collision point has
 			been reached, so we need to swap out
-			the current player's motion function forst
+			the current player's motion function for
 			the pre-computed motion function.
 			*/
 
@@ -560,8 +554,8 @@ const react = ( function () {
 			hero.locomotion = collisions.locomotion
 
 			if (hero.lastCloud !== collisions.cloudId) {
-				score += 1
 				hero.lastCloud = collisions.cloudId
+				score += 1
 			}
 
 			return {
@@ -572,33 +566,38 @@ const react = ( function () {
 		}
 	)
 
-	self.endGame = makeReaction(
+	self.killHero = makeReaction(
 		['hero'], ['hero'],
 		(hero) => {
 			/*
-			The game is over.
+			The player is offscreen; kill the player.
 			*/
 
 			hero.isDead = true
-			return {hero: hero}
+
+			return {
+				hero: hero
+			}
 		}
 	)
 
-	self.beginJumpPowerup = time => {
+	self.queueJump = time => {
 		return makeReaction(
 			['hero'], ['hero'],
 			(hero) => {
 				/*
-				register that we are getting ready to jump.
+				register that the jump is beginning at a particular time.
 				*/
 
-				if (hero.locomotion === 'standing' || hero.locomotion === "falling") {
+				if (hero.locomotion === 'standing' || hero.locomotion === 'falling') {
 					hero.jump = {
-						'time': time
+						time: time
 					}
 				}
 
-				return {hero: hero}
+				return {
+					hero: hero
+				}
 			}
 		)
 	}
@@ -607,22 +606,28 @@ const react = ( function () {
 		return makeReaction(
 			['hero', 'currStep'], ['hero'],
 			(hero, currStep) => {
+				/*
+				Launch the grouse from a standing posture to
+				flying along.
+				*/
 
 				if (hero.locomotion !== "standing") {
-					return {hero: hero}
+					return {
+						hero: hero
+					}
 				}
 
-				const holdDuration = time - hero.jump.time
 				const coords = hero.position(currStep)
 
-				var mouse = utils.asCanvasMouseCoords(x, y)
+				const mouse = utils.asCanvasMouseCoords(x, y)
 
-				var dist = {
+				const dist = {
 					x: +Math.abs(mouse.x - coords.x1),
 					y: -Math.abs(mouse.y - coords.y1)
 				}
 
-				var angle = Math.atan(dist.y / dist.x)
+				const angle = Math.atan(dist.y / dist.x)
+				const holdDuration = time - hero.jump.time
 
 				var velocities = {
 					x:
@@ -634,6 +639,7 @@ const react = ( function () {
 				hero.position = motion.falling({
 					x0: coords.x0,
 					x1: coords.x1,
+
 					y0: coords.y0,
 					y1: coords.y1,
 
@@ -648,7 +654,9 @@ const react = ( function () {
 				hero.locomotion = 'falling'
 				hero.jump = {}
 
-				return {hero: hero}
+				return {
+					hero: hero
+				}
 			})
 	}
 
@@ -656,9 +664,12 @@ const react = ( function () {
 		return makeReaction(
 			['hero', 'currStep'], ['hero'],
 			(hero, currStep) => {
+				/*
+				Tilt the grouse depending on where the mouse is pointing.
+				*/
 
-				const mouse = utils.asCanvasMouseCoords(x, y)
 				const heroCoords = hero.position(currStep)
+				const mouse      = utils.asCanvasMouseCoords(x, y)
 
 				var dist = {
 					x: mouse.x - heroCoords.x1,
@@ -666,14 +677,14 @@ const react = ( function () {
 				}
 
 				if (dist.y === 0) {
-					var angle = 0
+					hero.angle = 0
 				} else {
-					var angle = -Math.atan2(dist.x, dist.y) - (270) * 3.14/180
+					hero.angle = -Math.atan2(dist.x, dist.y) - 270 * 3.14 / 180
 				}
 
-				hero.angle = angle
-
-				return {hero: hero}
+				return {
+					hero: hero
+				}
 			}
 		)
 	}
@@ -757,7 +768,7 @@ const currently = ( function () {
 	self.colliding = makeInspector(
 		['collisions', 'currStep'],
 		(collisions, currStep) => {
-			return !utils.isEmpty(collisions) && collisions.time < currStep
+			return !utils.isEmpty(collisions) && collisions.time === currStep
 		}
 	)
 
@@ -867,7 +878,7 @@ var update = ( function () {
 
 		when(currently.isCloudy, react.removeOldClouds)
 
-		when(currently.offscreen, react.endGame)
+		when(currently.offscreen, react.killHero)
 
 		when(currently.noFutureCollisions, react.scheduleCollision)
 
@@ -1068,7 +1079,9 @@ const draw = ( function () {
 	*/
 
 	const upon = function (event, response) {
-		//
+		/*
+		Add a reaction when a particular event is triggered.
+		*/
 
 		can.addEventListener(event, event => {
 			state.reactions = state.reactions.concat([ response(event) ])
@@ -1076,21 +1089,28 @@ const draw = ( function () {
 	}
 
 	upon('mousedown', event => {
+		/*
+		Stop flying, or start jumping.
+		*/
 
-		if (state.hero.locomotion === "flying") {
-			return react.clipWings
-		} else {
-			return react.beginJumpPowerup(utils.getTime())
-		}
+		return state.hero.locomotion === "flying" ?
+			react.clipWings :
+			react.queueJump(utils.getTime())
 	})
 
 	upon('mouseup', event => {
+		/*
+		Launch the jump.
+		*/
 
-		return react.takeOff(
-			event.pageX, event.pageY, utils.getTime())
+		return react.takeOff(event.pageX, event.pageY, utils.getTime())
 	})
 
 	upon('mousemove', event => {
+		/*
+		Rotate the grouse, based on the mouse location.
+		*/
+
 		return react.setAngle(event.pageX, event.pageY)
 	})
 
