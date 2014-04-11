@@ -41,8 +41,8 @@ const constants = ( function () {
 		black: "black"
 	}
 
-	self.heroWidth    = 32                          // .
-	self.heroHeight   = 32                          //
+	self.heroWidth    = 32                          // the width of the hero's collision box.
+	self.heroHeight   = 32                          // the height of the hero's collision box.
 
 	self.bound =  {
 		x0: -self.cloudWidth,                       // the left outer bound.
@@ -58,8 +58,8 @@ const constants = ( function () {
 	}
 
 	self.cloudRange = {
-		x: 0.150,
-		y: 0.875
+		y0: 0.150,
+		y1: 0.875
 	}
 
 	return self
@@ -235,8 +235,8 @@ var state = ( function () {
 			x0: 10,
 			x1: 10 + constants.heroWidth,
 
-			y0: constants.cloudRange.y + 50,
-			y1: constants.cloudRange.y + 50 + constants.heroHeight,
+			y0: constants.cloudRange.y0,
+			y1: constants.cloudRange.y1,
 
 			vx: constants.flyingBirdDx,
 			vy: 0,
@@ -270,11 +270,11 @@ var state = ( function () {
 
 
 
+/*
+creates a reaction function that accesses and alters part
+of the state.
+*/
 const makeReaction = (gets, sets, reaction) => {
-	/*
-	creates a reaction function that accesses and alters part
-	of the state.
-	*/
 
 	return state => {
 
@@ -308,12 +308,12 @@ const react = ( function () {
 
 	var self = {}
 
+	/*
+	Add a new cloud.
+	*/
 	self.addClouds = makeReaction(
 		['clouds', 'currStep', 'nextCloud'], ['clouds', 'nextCloud'],
 		(clouds, currStep, nextCloud) => {
-			/*
-			Add a new cloud.
-			*/
 
 			const y0 = utils.randBetween(
 				0.150 * constants.bound.y1 + constants.heroHeight + 10,
@@ -341,12 +341,12 @@ const react = ( function () {
 			}
 		})
 
+	/*
+	Remove the clouds that have drifted off-screen.
+	*/
 	self.removeOldClouds = makeReaction(
 		['clouds', 'currStep'], ['clouds'],
 		(clouds, currStep) => {
-			/*
-			Remove the clouds that have drifted off-screen.
-			*/
 
 			const filteredClouds = clouds.filter(cloud => {
 				return cloud.position(currStep).x0 > constants.bound.x0
@@ -358,13 +358,13 @@ const react = ( function () {
 		}
 	)
 
+	/*
+	Swap the initial flying sin-wave motion function for a
+	falling motion function.
+	*/
 	self.clipWings = makeReaction(
 		['hero', 'currStep'], ['hero', 'queuedCollision'],
 		(hero, currStep) => {
-			/*
-			Swap the initial flying sin-wave motion function for a
-			falling motion function.
-			*/
 
 			hero.locomotion = 'falling'
 
@@ -539,15 +539,15 @@ const react = ( function () {
 
 
 
+	/*
+	The pre-calculated collision point has
+	been reached, so we need to swap out
+	the current player's motion function for
+	the pre-computed motion function.
+	*/
 	self.alterCourse = makeReaction(
 		['hero', 'queuedCollision', 'score'], ['hero', 'queuedCollision', 'score'],
 		(hero, queuedCollision, score) => {
-			/*
-			The pre-calculated collision point has
-			been reached, so we need to swap out
-			the current player's motion function for
-			the pre-computed motion function.
-			*/
 
 			hero.position   = queuedCollision.position
 			hero.locomotion = queuedCollision.locomotion
@@ -565,12 +565,12 @@ const react = ( function () {
 		}
 	)
 
+	/*
+	The player is offscreen; kill the player.
+	*/
 	self.killHero = makeReaction(
 		['hero'], ['hero'],
 		(hero) => {
-			/*
-			The player is offscreen; kill the player.
-			*/
 
 			hero.isDead = true
 
@@ -580,13 +580,13 @@ const react = ( function () {
 		}
 	)
 
+	/*
+	register that the jump is beginning at a particular time.
+	*/
 	self.queueJump = time => {
 		return makeReaction(
 			['hero'], ['hero'],
 			(hero) => {
-				/*
-				register that the jump is beginning at a particular time.
-				*/
 
 				if (hero.locomotion === 'standing' || hero.locomotion === 'falling') {
 					hero.jump = {
@@ -601,14 +601,14 @@ const react = ( function () {
 		)
 	}
 
+	/*
+	Launch the grouse from a standing posture to
+	flying along.
+	*/
 	self.takeOff = (x, y, time) => {
 		return makeReaction(
 			['hero', 'currStep'], ['hero'],
 			(hero, currStep) => {
-				/*
-				Launch the grouse from a standing posture to
-				flying along.
-				*/
 
 				if (hero.locomotion !== "standing") {
 					return {
@@ -659,13 +659,13 @@ const react = ( function () {
 			})
 	}
 
+	/*
+	Tilt the grouse depending on where the mouse is pointing.
+	*/
 	self.setAngle = (x, y) => {
 		return makeReaction(
 			['hero', 'currStep'], ['hero'],
 			(hero, currStep) => {
-				/*
-				Tilt the grouse depending on where the mouse is pointing.
-				*/
 
 				const heroCoords = hero.position(currStep)
 				const mouse      = utils.asCanvasMouseCoords(x, y)
@@ -1107,43 +1107,42 @@ const draw = ( function () {
 
 
 
+/*
+	This module attaches event listeners to the canvas.
+*/
 ;( function () {
-	/*
-		This module attaches event listeners to the canvas.
-	*/
 
+	/*
+	Add a reaction when a particular event is triggered.
+	*/
 	const upon = function (event, response) {
-		/*
-		Add a reaction when a particular event is triggered.
-		*/
 
 		can.addEventListener(event, event => {
 			state.reactions = state.reactions.concat([ response(event) ])
 		})
 	}
 
+	/*
+	Stop flying, or start jumping.
+	*/
 	upon('mousedown', event => {
-		/*
-		Stop flying, or start jumping.
-		*/
 
 		return state.hero.locomotion === "flying" ?
 			react.clipWings :
 			react.queueJump(utils.getTime())
 	})
 
+	/*
+	Launch the jump.
+	*/
 	upon('mouseup', event => {
-		/*
-		Launch the jump.
-		*/
-
 		return react.takeOff(event.pageX, event.pageY, utils.getTime())
 	})
 
+	/*
+	Rotate the grouse, based on the mouse location.
+	*/
 	upon('mousemove', event => {
-		/*
-		Rotate the grouse, based on the mouse location.
-		*/
 		return react.setAngle(event.pageX, event.pageY)
 	})
 
@@ -1158,16 +1157,16 @@ const draw = ( function () {
 
 
 
+/*
+	This module contains the main game loop, and
+	the code that ends the game.
+*/
 ;( function () {
-	/*
-		This module contains the main game loop, and
-		the code that ends the game.
-	*/
 
+	/*
+		repeatedly update the state.
+	*/
 	const loop = function () {
-		/*
-			repeatedly update the state.
-		*/
 
 		if (!state.hero.isDead) {
 
