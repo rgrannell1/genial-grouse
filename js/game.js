@@ -466,7 +466,8 @@ const react = ( function () {
 
 				var collision = {
 					time:       Infinity,
-					locomotion: "standing"
+					locomotion: "standing",
+					position: t => "this function is a stand-in, and will never be called."
 				}
 
 
@@ -818,6 +819,10 @@ const check = ( function () {
 		func:
 			val => {
 				return val && typeof val === 'function'
+			},
+		string:
+			val => {
+				return Object.prototype.toString.call(val) === "[object String]"
 			}
 	}
 
@@ -842,6 +847,26 @@ const check = ( function () {
 
 		check(['currStep'], is.number,
 			score => "currStep not number.")
+
+
+		check(['collisions'],
+			obj   => {
+				return utils.isEmpty(obj) ?
+					true :
+					'time'       in obj &&
+					'position'   in obj &&
+					'locomotion' in obj
+			},
+			obj => "properties missing from collisions.")
+
+		check(['collisions'],
+			obj   => {
+				return utils.isEmpty(obj) ?
+					true :
+					is.number(obj.time) && is.func(obj.position) && is.string(obj.locomotion)
+			},
+			obj => "collision properties wrong types.")
+
 
 	}
 
@@ -1110,7 +1135,6 @@ const draw = ( function () {
 		/*
 		Rotate the grouse, based on the mouse location.
 		*/
-
 		return react.setAngle(event.pageX, event.pageY)
 	})
 
