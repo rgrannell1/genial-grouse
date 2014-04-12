@@ -324,7 +324,7 @@ const react = ( function () {
 		(clouds, currStep, nextCloud) => {
 
 			const y0 = utils.randBetween(
-				0.150 * constants.bound.y1 + constants.heroHeight + 10,
+				0.150 * constants.bound.y1,
 				0.875 * constants.bound.y1)
 
 			const y1 = y0 + constants.cloudHeight
@@ -479,7 +479,7 @@ const react = ( function () {
 				var collision = {
 					time:       Infinity,
 					locomotion: "standing",
-					position: t => "this function is a stand-in, and will never be called."
+					position:   t => "this function is a stand-in, and will never be called."
 				}
 
 				for (cloud of clouds) {
@@ -498,10 +498,11 @@ const react = ( function () {
 					var root = constants.bound.x1
 
 					for (var ith of range(500)) {
-						root -= height.diff(root) / height.diffRate(root)
+						var change = height.diff(root) / height.diffRate(root)
+						root -= change < 10000 ? change : 0
 					}
 
-					if (root < currStep || root > currStep + 2000) {
+					if (root < currStep) {
 						continue
 					}
 
@@ -1039,7 +1040,6 @@ const draw = ( function () {
 			ctx.stroke()
 		}
 
-
 		const birdy = document.getElementById("bird-asset")
 
 		const coords = hero.position(currStep)
@@ -1069,18 +1069,18 @@ const draw = ( function () {
 			y0: -Math.sin(angle) * coords.x0 + Math.cos(angle) * coords.y0
 		}
 
-		coordsPrime.x0 -= 16
-		coordsPrime.y0 -= 16
+		coordsPrime.x0 -= 8
+		coordsPrime.y0 -= 8
 
 		ctx.save();
 
 		ctx.rotate(angle)
 
-		ctx.drawImage(birdy, coordsPrime.x0, coordsPrime.y0)
+		ctx.drawImage(birdy, coordsPrime.x0 + 8, coordsPrime.y0)
 		ctx.restore();
 
 		if (constants.debug) {
-			ctx.fillStyle = 'rgba(0,0,0,0.3)'
+			ctx.fillStyle = 'rgba(0,0,0,0.1)'
 			ctx.fillRect(
 				coords.x0, coords.y0,
 				constants.heroWidth, constants.heroHeight
